@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <base target="_top"> 
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Masuk - Laleh.id</title>
+    
+    <!-- Fonts & Tailwind CSS -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { 
+                extend: { 
+                    fontFamily: { 
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'], 
+                        serif: ['Lora', 'serif'] 
+                    }, 
+                    colors: { 
+                        laleh: { 
+                            mocha: '#825E4A', 
+                            mochaHover: '#6d4d3c',
+                            black: '#111111', 
+                            bg: '#F9FAFB' 
+                        } 
+                    } 
+                } 
+            }
+        }
+    </script>
+    
+    <!-- SweetAlert2 & Lucide Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        body { background-color: #F9FAFB; -webkit-tap-highlight-color: transparent; }
+        input { transition: all 0.2s ease; border: 1px solid #E5E7EB; min-height: 52px; font-size: 16px !important; }
+        input:focus { border-color: #825E4A; outline: none; box-shadow: 0 0 0 3px rgba(130, 94, 74, 0.15); }
+        .password-toggle { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #9CA3AF; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; }
+        .swal2-styled.swal2-confirm { background-color: #825E4A !important; border-radius: 12px !important; font-weight: 600 !important; }
+    </style>
+</head>
+<body class="antialiased text-gray-800">
+
+    <div class="min-h-screen flex flex-col lg:flex-row">
+        <div class="hidden lg:flex w-1/2 bg-laleh-mocha items-center justify-center relative overflow-hidden">
+            <video autoplay loop muted playsinline class="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-multiply">
+              <source src="https://cdn.jsdelivr.net/gh/tometttt27-afk/meccaGroup@main/0516.mp4" type="video/mp4">Browser Anda tidak mendukung tag video.
+            </video>
+            <div class="relative z-10 text-center text-white p-12 flex flex-col items-center">
+                <img src="https://drive.google.com/thumbnail?id=1MGpOxtXzSPok0B86nQHNy5pd4i1Vs1S7&sz=w1000" 
+                     alt="Logo Laleh" class="h-32 lg:h-40 mb-4 drop-shadow-md object-contain">
+                <p class="text-lg font-light tracking-wide drop-shadow-md">Sempurnakan Hijrahmu, Jaga Fitrahmu.</p>
+            </div>
+        </div>
+
+        <div class="w-full lg:w-1/2 flex flex-col justify-center items-center p-4 sm:p-12 min-h-screen lg:min-h-0 bg-laleh-bg lg:bg-white">
+            <div class="w-full max-w-md bg-white p-6 sm:p-10 rounded-3xl sm:shadow-[0_8px_32px_rgba(0,0,0,0.04)] border border-gray-100 shadow-sm">
+                
+                <div class="lg:hidden text-center mb-8 flex justify-center">
+                    <img src="https://drive.google.com/thumbnail?id=1MGpOxtXzSPok0B86nQHNy5pd4i1Vs1S7&sz=w1000" 
+                         alt="Logo Laleh" class="h-16 sm:h-20 object-contain">
+                </div>
+
+                <h2 class="text-2xl sm:text-3xl font-serif text-laleh-black mb-2 text-center lg:text-left">Masuk Portal</h2>
+                <p class="text-gray-400 text-sm mb-8 text-center lg:text-left">Selamat datang kembali, Agen Laleh.</p>
+                
+                <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email Anda</label>
+                        <input id="email" type="email" required class="w-full px-4 rounded-xl bg-gray-50" placeholder="email@contoh.com">
+                    </div>
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="block text-sm font-medium text-gray-700">Password</label>
+                            <!-- Navigasi ke Lupa Password -->
+                            <button type="button" onclick="safeRedirect('forgot')" class="text-xs text-laleh-mocha font-semibold hover:underline">Lupa password?</button>
+                        </div>
+                        <div class="relative">
+                            <input id="password" type="password" required class="w-full pl-4 pr-12 rounded-xl bg-gray-50" placeholder="••••••••">
+                            <button type="button" class="password-toggle" onclick="togglePass('password', this)">
+                                <i data-lucide="eye" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" id="btnSubmit" class="w-full bg-laleh-mocha text-white font-medium p-4 rounded-xl hover:bg-laleh-mochaHover transition shadow-lg mt-6">
+                        Masuk
+                    </button>
+                </form>
+                
+                <p class="text-center text-sm text-gray-500 mt-8">
+                    Belum terdaftar? 
+                    <button type="button" onclick="safeRedirect('signup')" class="text-laleh-mocha font-semibold hover:underline ml-1">Daftar</button>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // Ambil URL Web App secara otomatis dari backend
+        const rawUrl = "<?= typeof url !== 'undefined' ? url : '' ?>"; 
+        const appUrl = rawUrl.startsWith('http') ? rawUrl : '';
+
+        // Fungsi navigasi aman untuk lingkungan Iframe GAS
+        function safeRedirect(page) {
+            if (!appUrl) {
+                Swal.fire('Informasi', `Dalam mode pratinjau, Anda akan diarahkan ke halaman: ${page}`, 'info');
+                return;
+            }
+            const targetUrl = appUrl + `?page=${page}`;
+            try {
+                window.top.location.href = targetUrl;
+            } catch (e) {
+                window.location.href = targetUrl;
+            }
+        }
+
+        function togglePass(id, btn) {
+            const input = document.getElementById(id);
+            const icon = btn.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.setAttribute('data-lucide', 'eye-off');
+            } else {
+                input.type = 'password';
+                icon.setAttribute('data-lucide', 'eye');
+            }
+            lucide.createIcons();
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnSubmit');
+            const email = document.getElementById('email').value;
+            const pass = document.getElementById('password').value;
+
+            btn.innerHTML = "Memeriksa...";
+            btn.disabled = true;
+
+            if (typeof google === 'undefined') {
+                Swal.fire('Informasi', 'Mode Preview UI Aktif.', 'info');
+                btn.innerHTML = "Masuk";
+                btn.disabled = false;
+                return;
+            }
+
+            google.script.run
+                .withSuccessHandler(function(res) {
+                    btn.innerHTML = "Masuk";
+                    btn.disabled = false;
+                    if (res.success) {
+                        localStorage.setItem('laleh_user', JSON.stringify(res.user));
+                        Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message, timer: 1500, showConfirmButton: false })
+                        .then(() => {
+                            const target = res.user.role.toLowerCase() === 'admin' ? 'admin' : 'home';
+                            safeRedirect(target);
+                        });
+                    } else {
+                        Swal.fire('Gagal', res.message, 'error');
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    btn.innerHTML = "Masuk";
+                    btn.disabled = false;
+                    Swal.fire('Error', 'Gagal terhubung: ' + error.message, 'error');
+                })
+                .prosesLogin(email, pass);
+        }
+    </script>
+</body>
+</html>
