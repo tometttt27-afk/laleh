@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <base target="_top"> 
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Finance Panel - Laleh.id</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { 
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        serif: ['Lora', 'serif']
+                    },
+                    colors: {
+                        laleh: {
+                            mocha: '#825E4A',      
+                            mochaHover: '#6d4d3c',
+                            black: '#111111',
+                            bg: '#F9FAFB',
+                            accent: '#FDF8F5'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- SweetAlert2, Lucide Icons, ExcelJS & FileSaver -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <style>
+        body { background-color: #F9FAFB; color: #111111; -webkit-tap-highlight-color: transparent; }
+        .sidebar-active { 
+            background-color: #FDF8F5; 
+            color: #825E4A; 
+            font-weight: 600; 
+            border-right: 4px solid #825E4A; 
+        }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(130, 94, 74, 0.08); }
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 8px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #825E4A; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Container Utama -->
+    <div id="app" class="flex h-screen overflow-hidden"></div>
+
+<script>
+// ==========================================
+// 1. STATE MANAGEMENT & SETUP AWAL
+// ==========================================
+let state = {
+    view: 'ringkasan', 
+    user: null, 
+    financeStats: {
+        hargaBarang: 0,
+        ongkir: 0,
+        danaMasuk: 0,
+        pengeluaran: 0,
+        labaBersih: 0
+    },
+    expenses: [],
+    categories: [],
+    history: [],
+    expenseView: 'semua'
+};
+
+const rawUrl = "<?= typeof url !== 'undefined' ? url : '' ?>"; 
+const appUrl = rawUrl.startsWith('http') ? rawUrl : '';
+
+function safeRedirect(page) {
+    if (!appUrl) {
+        Swal.fire('Navigasi', `Mode Preview: Menuju halaman ${page}`, 'info');
+        return;
+    }
+    const targetUrl = appUrl + "?page=" + page;
+    try { window.top.location.href = targetUrl; } catch (e) { window.location.href = targetUrl; }
+}
+
+// ==========================================
+// 2. FUNGSI LOAD DATA DARI BACKEND
+// ==========================================
+function loadFinanceData() {
+    if (typeof google === 'undefined') {
+        state.financeStats = { hargaBarang: 25500000, ongkir: 1250000, danaMasuk: 21000000, pengeluaran: 8500000, labaBersih: 12500000 };
+        state.categories = ["HPP Produksi (Kain, Jahit)", "Biaya Ekspedisi (Ongkir Riil)", "Operasional & Gaji", "Marketing & Iklan", "Packaging"];
+        state.expenses = [
+            {id: 'EXP-002', tanggal: '2023-10-25', kategori: 'Biaya Ekspedisi (Ongkir Riil)', nominal: 350000, keterangan: 'Bayar resi J&T harian tanggal 25', bukti_url: 'https://example.com/dummy.pdf'},
+            {id: 'EXP-001', tanggal: '2023-10-24', kategori: 'HPP Produksi (Kain, Jahit)', nominal: 4500000, keterangan: 'Beli kain Maxmara 10 Roll di Tanah Abang', bukti_url: ''}
+        ];
+        state.history = [
+            {id: 'HST-001', name: 'PO Batch 1 - Lebaran', date: '2023-09-01', summary: { danaMasuk: 45000000, pengeluaran: 20000000, labaBersih: 25000000 }, expenses: [{tanggal: '2023-08-15', kategori: 'HPP Produksi', nominal: 15000000, keterangan: 'Kain Batch 1', bukti_url: ''}]}
+        ];
+        renderApp();
+        return;
+    }
+
+    google.script.run.withSuccessHandler(res => { state.financeStats = res || state.financeStats; renderApp(); }).getFinanceStats();
+    google.script.run.withSuccessHandler(res => { state.expenses = res || []; renderApp(); }).getExpenses();
+    google.script.run.withSuccessHandler(res => { state.categories = res || []; renderApp(); }).getExpenseCategories();
+    google.script.run.withSuccessHandler(res => { state.history = res || []; renderApp(); }).getFinanceHistory(); 
+}
+
+// ==========================================
+// 3. SESSION CHECKER (PENGECEKAN LOGIN)
+// ==========================================
+const savedUser = localStorage.getItem('laleh_user');
+
+if (typeof google === 'undefined') {
+    state.user = { name: 'Admin Preview', email: 'finance@laleh.com', role: 'Finance' };
+    loadFinanceData();
+} else if (savedUser) {
+    const parsedUser = JSON.parse(savedUser);
+    const userRole = parsedUser.role ? parsedUser.role.toLowerCase() : '';
+    
+    if (userRole === 'admin' || userRole === 'finance') {
+        state.user = parsedUser;
+        loadFinanceData();
+    } else {
+        safeRedirect('home'); 
+    }
+} else {
+    safeRedirect('signin'); 
+}
+
+// ==========================================
+// 4. FUNGSI LOGIKA (ACTIONS)
+// ==========================================
+function navigateTo(view) {
+    state.view = view;
+    renderApp();
+}
+
+function handleLogout() {
+    Swal.fire({
+        title: 'Keluar?', text: 'Anda akan keluar dari Panel Keuangan.', icon: 'warning',
+        showCancelButton: true, confirmButtonColor: '#825E4A', confirmButtonText: 'Ya, Keluar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            localStorage.removeItem('laleh_user');
+            safeRedirect('signin');
+        }
+    });
+}
+
+function changeExpenseView(viewType) {
+    state.expenseView = viewType;
+    renderApp();
+}
+
+// --- FUNGSI TUTUP BUKU ---
+function prosesTutupBuku() {
+    if(state.expenses.length === 0) {
+        Swal.fire('Info', 'Tidak ada data pengeluaran yang bisa ditutup bukukan saat ini.', 'info');
+        return;
+    }
+
+    Swal.fire({
+        title: 'Tutup Buku Periode Ini',
+        text: 'Masukkan nama periode untuk diarsipkan (Cth: PO Batch 2)',
+        input: 'text',
+        inputPlaceholder: 'Nama Periode...',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#825E4A',
+        cancelButtonText: 'Batal',
+        confirmButtonText: 'Proses Tutup Buku',
+        preConfirm: (name) => {
+            if (!name) Swal.showValidationMessage('Nama periode tidak boleh kosong!');
+            return name;
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const periodName = result.value;
+            Swal.fire({ title: 'Memindahkan File & Arsip...', text: 'Mohon tunggu, sedang merapikan folder Drive.', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+
+            const archiveData = {
+                name: periodName,
+                summary: state.financeStats,
+                expenses: state.expenses
+            };
+
+            if (typeof google === 'undefined') {
+                setTimeout(() => {
+                    state.history.unshift({
+                        id: 'HST-' + new Date().getTime(),
+                        date: new Date().toISOString().slice(0,10),
+                        ...archiveData
+                    });
+                    state.expenses = [];
+                    state.financeStats.pengeluaran = 0;
+                    state.financeStats.labaBersih = state.financeStats.danaMasuk;
+                    
+                    Swal.fire('Berhasil!', 'Buku berhasil ditutup dan diarsipkan.', 'success');
+                    navigateTo('arsip');
+                }, 1500);
+                return;
+            }
+
+            google.script.run.withSuccessHandler(res => {
+                if(res.success) {
+                    Swal.fire('Berhasil!', res.message, 'success');
+                    loadFinanceData(); 
+                    navigateTo('arsip');
+                } else {
+                    Swal.fire('Gagal', res.message, 'error');
+                }
+            }).withFailureHandler(err => {
+                Swal.fire('Error', err.message, 'error');
+            }).closeFinanceBook(archiveData);
+        }
+    });
+}
+
+function gantiNamaArsip(id, oldName) {
+    Swal.fire({
+        title: 'Ganti Nama Arsip',
+        input: 'text',
+        inputValue: oldName,
+        showCancelButton: true,
+        confirmButtonColor: '#825E4A',
+        confirmButtonText: 'Simpan',
+        preConfirm: (name) => {
+            if (!name) Swal.showValidationMessage('Nama tidak boleh kosong!');
+            return name;
+        }
+    }).then((result) => {
+        if (result.isConfirmed && result.value !== oldName) {
+            Swal.fire({ title: 'Mengubah...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+            
+            if (typeof google === 'undefined') {
+                setTimeout(() => {
+                    const idx = state.history.findIndex(h => h.id === id);
+                    if(idx > -1) state.history[idx].name = result.value;
+                    renderApp();
+                    Swal.close();
+                }, 800);
+                return;
+            }
+
+            google.script.run.withSuccessHandler(res => {
+                if(res.success) { loadFinanceData(); Swal.close(); }
+                else Swal.fire('Gagal', res.message, 'error');
+            }).renameFinanceHistory(id, result.value);
+        }
+    });
+}
+
+function bukaDetailArsip(id) {
+    const archive = state.history.find(h => h.id === id);
+    if(!archive) return;
+
+    const modal = document.getElementById('modal-detail-arsip');
+    
+    document.getElementById('ad_name').innerText = archive.name;
+    document.getElementById('ad_date').innerText = archive.date;
+    document.getElementById('ad_omset').innerText = "Rp " + archive.summary.danaMasuk.toLocaleString('id-ID');
+    document.getElementById('ad_exp').innerText = "Rp " + archive.summary.pengeluaran.toLocaleString('id-ID');
+    
+    const labaEl = document.getElementById('ad_profit');
+    labaEl.innerText = "Rp " + archive.summary.labaBersih.toLocaleString('id-ID');
+    labaEl.className = archive.summary.labaBersih >= 0 ? "text-xl sm:text-2xl font-black text-green-600 truncate" : "text-xl sm:text-2xl font-black text-red-600 truncate";
+
+    const tbody = document.getElementById('ad_table_body');
+    if (archive.expenses && archive.expenses.length > 0) {
+        tbody.innerHTML = archive.expenses.map(e => `
+            <tr class="border-b border-gray-100 text-[11px] sm:text-xs">
+                <td class="py-2.5 px-3 whitespace-nowrap text-gray-500">${e.tanggal}</td>
+                <td class="py-2.5 px-3 text-gray-800 font-semibold">${e.kategori}</td>
+                <td class="py-2.5 px-3 text-gray-600 truncate max-w-[150px] sm:max-w-[200px]" title="${e.keterangan}">${e.keterangan}</td>
+                <td class="py-2.5 px-3 text-right font-bold text-red-600 whitespace-nowrap">Rp ${Number(e.nominal).toLocaleString('id-ID')}</td>
+                <td class="py-2.5 px-3 text-center">
+                    ${e.bukti_url ? `<a href="${e.bukti_url}" target="_blank" class="text-blue-600 hover:underline inline-flex items-center gap-1"><i data-lucide="external-link" class="w-3 h-3"></i> Bukti</a>` : '-'}
+                </td>
+            </tr>
+        `).join('');
+    } else {
+        tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-xs text-gray-400">Tidak ada rincian pengeluaran.</td></tr>`;
+    }
+
+    if(modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); lucide.createIcons(); }
+}
+
+function tutupDetailArsip() {
+    const modal = document.getElementById('modal-detail-arsip');
+    if(modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+}
+
+
+// MODAL PENGELUARAN
+function openExpenseModal() {
+    const modal = document.getElementById('modal-expense');
+    if(modal) {
+        document.getElementById('formExpense').reset();
+        document.getElementById('e_tgl').value = new Date().toISOString().slice(0,10);
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+}
+
+function closeExpenseModal() {
+    const modal = document.getElementById('modal-expense');
+    if(modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+function submitExpense(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSaveExpense');
+    
+    const fileInput = document.getElementById('e_file');
+    const file = fileInput.files.length > 0 ? fileInput.files[0] : null;
+
+    const data = {
+        tanggal: document.getElementById('e_tgl').value,
+        kategori: document.getElementById('e_kat').value,
+        nominal: parseInt(document.getElementById('e_nom').value) || 0,
+        keterangan: document.getElementById('e_ket').value,
+        bukti_url: '' 
+    };
+
+    btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>'; 
+    btn.disabled = true;
+    lucide.createIcons();
+
+    const sendDataToBackend = (fileDataObj = null) => {
+        // ========================================================
+        // 1. OPTIMISTIC UPDATE: Langsung Tampil di Layar (0 Detik)
+        // ========================================================
+        const tempId = 'EXP-TEMP-' + new Date().getTime();
+        const tempExpense = {
+            id: tempId,
+            tanggal: data.tanggal,
+            kategori: data.kategori,
+            nominal: data.nominal,
+            keterangan: data.keterangan,
+            bukti_url: fileDataObj ? '#' : '' 
+        };
+
+        state.expenses.unshift(tempExpense);
+        state.financeStats.pengeluaran += data.nominal;
+        state.financeStats.labaBersih -= data.nominal; // Laba Bersih otomatis berkurang
+
+        closeExpenseModal();
+        renderApp();
+        
+        btn.innerHTML = '<i data-lucide="save" class="w-3.5 h-3.5"></i> Simpan'; 
+        btn.disabled = false;
+
+        if (typeof google === 'undefined') {
+            Swal.fire({icon: 'success', title: 'Berhasil', text: 'Tersimpan (Preview Mode)', timer: 1500, showConfirmButton: false});
+            return;
+        }
+
+        // ========================================================
+        // 2. BACKGROUND SYNC: Kirim ke Google Sheets & Drive diam-diam
+        // ========================================================
+        google.script.run.withSuccessHandler(res => {
+            if(res.success) {
+                Swal.fire({
+                    toast: true, position: 'top-end', showConfirmButton: false,
+                    timer: 2000, icon: 'success', title: 'Data tersinkronisasi.'
+                });
+                
+                // Jeda 3 detik memastikan Google Sheets selesai memproses flush data
+                setTimeout(() => {
+                    loadFinanceData(); 
+                }, 3000);
+            } else {
+                state.expenses = state.expenses.filter(e => e.id !== tempId);
+                state.financeStats.pengeluaran -= data.nominal;
+                state.financeStats.labaBersih += data.nominal; // Revert saldo
+                renderApp();
+                Swal.fire('Gagal Menyimpan', res.message, 'error');
+            }
+        }).withFailureHandler(err => {
+            state.expenses = state.expenses.filter(e => e.id !== tempId);
+            state.financeStats.pengeluaran -= data.nominal;
+            state.financeStats.labaBersih += data.nominal; // Revert saldo
+            renderApp();
+            Swal.fire('Error Jaringan', 'Gagal terhubung ke server.', 'error');
+        }).addExpenseWithFile(data, fileDataObj);
+    };
+
+    if (file) {
+        if (file.size > 5 * 1024 * 1024) { 
+            Swal.fire('Gagal', 'Ukuran file terlalu besar. Maksimal 5MB.', 'warning');
+            btn.innerHTML = '<i data-lucide="save" class="w-3.5 h-3.5"></i> Simpan'; btn.disabled = false; return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const base64Data = event.target.result.split(',')[1];
+            const fileDataObj = { name: file.name, mimeType: file.type, base64: base64Data };
+            sendDataToBackend(fileDataObj);
+        };
+        reader.onerror = function() {
+            Swal.fire('Error', 'Gagal membaca file lokal.', 'error');
+            btn.innerHTML = '<i data-lucide="save" class="w-3.5 h-3.5"></i> Simpan'; btn.disabled = false;
+        };
+        reader.readAsDataURL(file);
+    } else {
+        sendDataToBackend(null);
+    }
+}
+
+function deleteExpense(id) {
+    if(id.includes('TEMP')) {
+        Swal.fire({icon: 'info', title: 'Sinkronisasi', text: 'Data sedang disinkronisasikan ke server. Mohon tunggu beberapa detik lagi.', confirmButtonColor: '#825E4A'});
+        return;
+    }
+
+    Swal.fire({
+        title: 'Hapus Data?', text: "Data pengeluaran ini akan dihapus permanen.", icon: 'warning',
+        showCancelButton: true, confirmButtonColor: '#ef4444', cancelButtonColor: '#825E4A', confirmButtonText: 'Ya, Hapus', cancelButtonText: 'Batal'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({ title: 'Menghapus...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+
+            if (typeof google === 'undefined') {
+                const deletedExp = state.expenses.find(e => e.id === id);
+                if (deletedExp) {
+                    state.financeStats.pengeluaran -= deletedExp.nominal;
+                    state.financeStats.labaBersih += deletedExp.nominal;
+                }
+                state.expenses = state.expenses.filter(e => e.id !== id);
+                renderApp(); 
+                Swal.fire({icon: 'success', title: 'Terhapus', text: 'Data dihapus (Preview Mode)', timer: 1500, showConfirmButton: false}); 
+                return;
+            }
+
+            google.script.run.withSuccessHandler(res => {
+                if(res.success) { 
+                    Swal.fire({icon: 'success', title: 'Terhapus', text: res.message, timer: 1500, showConfirmButton: false}); 
+                    loadFinanceData(); 
+                } else {
+                    Swal.fire('Gagal', res.message, 'error');
+                }
+            }).deleteExpense(id);
+        }
+    });
+}
+
+// LOGIKA MANAJEMEN KATEGORI
+function addCategoryUi() {
+    const input = document.getElementById('input_new_kat');
+    const val = input.value.trim();
+    if(!val) return;
+    
+    const container = document.getElementById('list_kat_container');
+    const div = document.createElement('div');
+    div.className = 'flex justify-between items-center bg-white border border-gray-200 px-4 py-3 rounded-xl mb-3 shadow-sm kat-item transition hover:border-laleh-mocha';
+    div.innerHTML = `<span class="text-sm font-bold text-gray-700 k-name">${val}</span><button type="button" onclick="this.parentElement.remove()" class="text-red-500 bg-red-50 border border-red-100 hover:bg-red-100 p-2 rounded-lg transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`;
+    container.appendChild(div);
+    lucide.createIcons();
+    input.value = ''; input.focus();
+}
+
+function saveCategories() {
+    const items = document.querySelectorAll('.kat-item .k-name');
+    const newList = []; items.forEach(el => newList.push(el.innerText.trim()));
+    
+    const btn = document.getElementById('btnSaveKat');
+    btn.innerHTML = "Menyimpan..."; btn.disabled = true;
+
+    if (typeof google === 'undefined') {
+        setTimeout(() => {
+            state.categories = newList; 
+            Swal.fire({icon: 'success', title: 'Berhasil', text: 'Kategori diperbarui (Preview Mode)', confirmButtonColor: '#825E4A'});
+            btn.innerHTML = "Simpan Perubahan"; btn.disabled = false;
+        }, 1000); return;
+    }
+
+    google.script.run.withSuccessHandler(res => {
+        btn.innerHTML = "Simpan Perubahan"; btn.disabled = false;
+        if(res.success) { 
+            state.categories = newList; 
+            Swal.fire({icon: 'success', title: 'Berhasil', text: res.message, confirmButtonColor: '#825E4A'}); 
+        } else {
+            Swal.fire('Gagal', res.message, 'error');
+        }
+    }).updateExpenseCategories(newList);
+}
+
+// EXPORT EXCEL PENGELUARAN AKTIF
+async function exportExpenses() {
+    if (typeof ExcelJS === 'undefined') return Swal.fire('Error', 'Library Excel belum siap.', 'error');
+    Swal.fire({ title: 'Menyiapkan File...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    try {
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('Data Pengeluaran');
+
+        ws.getColumn(1).width = 15; ws.getColumn(2).width = 30; ws.getColumn(3).width = 45; ws.getColumn(4).width = 20; ws.getColumn(5).width = 40;
+        
+        let r1 = ws.getRow(1); 
+        r1.values = ["TANGGAL", "KATEGORI PENGELUARAN", "KETERANGAN / CATATAN", "NOMINAL", "LINK BUKTI"];
+        r1.height = 25;
+        r1.font = { name: 'Arial', size: 10, bold: true, color: {argb: 'FFFFFFFF'} }; 
+        r1.fill = { type: 'pattern', pattern:'solid', fgColor:{argb:'FF825E4A'} }; 
+        r1.alignment = { vertical: 'middle', horizontal: 'center' };
+        
+        let cR = 2;
+        let totalExp = 0;
+
+        state.expenses.forEach(e => {
+            let row = ws.getRow(cR);
+            let nom = parseInt(e.nominal) || 0;
+            totalExp += nom;
+
+            row.getCell(1).value = e.tanggal;
+            row.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+            row.getCell(2).value = e.kategori;
+            row.getCell(2).alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+            row.getCell(3).value = e.keterangan;
+            row.getCell(3).alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+            row.getCell(4).value = "Rp " + nom.toLocaleString('id-ID');
+            row.getCell(4).font = { bold: true, color: { argb: 'FFDC2626' } }; 
+            row.getCell(4).alignment = { horizontal: 'right', vertical: 'middle' };
+
+            if(e.bukti_url && e.bukti_url !== '#') {
+                row.getCell(5).value = { text: "Lihat Bukti", hyperlink: e.bukti_url };
+                row.getCell(5).font = { color: { argb: 'FF2563EB' }, underline: true };
+            } else { row.getCell(5).value = "-"; }
+            row.getCell(5).alignment = { horizontal: 'center', vertical: 'middle' };
+
+            for(let i=1; i<=5; i++) row.getCell(i).border = { top: {style:'thin', color: {argb:'FFCCCCCC'}}, left: {style:'thin', color: {argb:'FFCCCCCC'}}, bottom: {style:'thin', color: {argb:'FFCCCCCC'}}, right: {style:'thin', color: {argb:'FFCCCCCC'}} };
+            cR++;
+        });
+
+        let sumRow = ws.getRow(cR);
+        sumRow.height = 25;
+        ws.mergeCells(cR, 1, cR, 3);
+        let titleSum = sumRow.getCell(1);
+        titleSum.value = "TOTAL PENGELUARAN";
+        titleSum.font = { name: 'Arial', size: 11, bold: true };
+        titleSum.fill = { type: 'pattern', pattern:'solid', fgColor:{argb: 'FFF3F4F6'} };
+        titleSum.alignment = { horizontal: 'right', vertical: 'middle' };
+
+        let valSum = sumRow.getCell(4);
+        valSum.value = "Rp " + totalExp.toLocaleString('id-ID');
+        valSum.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFDC2626' } };
+        valSum.fill = { type: 'pattern', pattern:'solid', fgColor:{argb: 'FFF3F4F6'} };
+        valSum.alignment = { horizontal: 'right', vertical: 'middle' };
+
+        for(let i=1; i<=5; i++) {
+            let cell = sumRow.getCell(i);
+            if (!cell.fill) cell.fill = { type: 'pattern', pattern:'solid', fgColor:{argb: 'FFF3F4F6'} };
+            cell.border = { top: {style:'medium', color: {argb:'FFA3A8B8'}}, left: {style:'thin', color: {argb:'FFCCCCCC'}}, bottom: {style:'thin', color: {argb:'FFCCCCCC'}}, right: {style:'thin', color: {argb:'FFCCCCCC'}} };
+        }
+
+        const buffer = await wb.xlsx.writeBuffer();
+        saveAs(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `Data_Pengeluaran_Aktif_Laleh_${new Date().toISOString().slice(0,10)}.xlsx`);
+        Swal.close();
+    } catch (e) { 
+        Swal.fire('Error', 'Gagal memproses file Excel.', 'error'); 
+    }
+}
+
+
+// ==========================================
+// 5. RENDERER COMPONENTS
+// ==========================================
+function Sidebar() {
+    return `
+    <aside class="w-64 bg-white border-r border-gray-100 hidden md:flex flex-col z-10">
+        <div class="p-8 border-b border-gray-50 text-center relative">
+            <h1 class="text-2xl font-serif font-bold tracking-widest text-laleh-mocha uppercase">FINANCE</h1>
+            <p class="text-[10px] uppercase tracking-widest text-gray-400 mt-1 font-bold">Buku Pengeluaran</p>
+        </div>
+        <div class="flex-1 py-6 flex flex-col gap-1 overflow-y-auto">
+            <button onclick="navigateTo('ringkasan')" class="flex items-center gap-3 px-8 py-4 text-sm transition-all w-full text-left ${state.view === 'ringkasan' ? 'sidebar-active' : 'text-gray-500 hover:bg-laleh-accent hover:text-laleh-mocha'}">
+                <i data-lucide="line-chart" class="w-5 h-5 shrink-0"></i> Dashboard Arus Kas
+            </button>
+            <button onclick="navigateTo('riwayat')" class="flex items-center gap-3 px-8 py-4 text-sm transition-all w-full text-left ${state.view === 'riwayat' ? 'sidebar-active' : 'text-gray-500 hover:bg-laleh-accent hover:text-laleh-mocha'}">
+                <i data-lucide="receipt" class="w-5 h-5 shrink-0"></i> Data Pengeluaran
+            </button>
+            <button onclick="navigateTo('arsip')" class="flex items-center gap-3 px-8 py-4 text-sm transition-all w-full text-left ${state.view === 'arsip' ? 'sidebar-active' : 'text-gray-500 hover:bg-laleh-accent hover:text-laleh-mocha'}">
+                <i data-lucide="folder-archive" class="w-5 h-5 shrink-0"></i> Arsip Tutup Buku
+            </button>
+            <button onclick="navigateTo('kategori')" class="flex items-center gap-3 px-8 py-4 text-sm transition-all w-full text-left ${state.view === 'kategori' ? 'sidebar-active' : 'text-gray-500 hover:bg-laleh-accent hover:text-laleh-mocha'}">
+                <i data-lucide="tags" class="w-5 h-5 shrink-0"></i> Master Kategori
+            </button>
+        </div>
+        <div class="p-6 border-t border-gray-50 flex flex-col gap-2">
+            <button onclick="safeRedirect('admin')" class="w-full flex items-center justify-center gap-2 py-3 text-laleh-mocha bg-laleh-accent hover:bg-laleh-mocha hover:text-white rounded-xl transition text-sm font-bold shadow-sm">
+                <i data-lucide="arrow-left" class="w-4 h-4 shrink-0"></i> Panel Admin
+            </button>
+            <button onclick="handleLogout()" class="w-full flex items-center justify-center gap-2 py-3 text-red-400 hover:bg-red-50 rounded-xl transition text-sm font-medium">
+                <i data-lucide="log-out" class="w-4 h-4 shrink-0"></i> Keluar
+            </button>
+        </div>
+    </aside>
+
+    <div class="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-100 z-50 flex justify-start sm:justify-around py-3 px-2 shadow-[0_-4px_24px_rgba(130,94,74,0.05)] overflow-x-auto custom-scroll">
+        <button onclick="navigateTo('ringkasan')" class="flex flex-col items-center gap-1 min-w-[70px] ${state.view === 'ringkasan' ? 'text-laleh-mocha' : 'text-gray-400'}"><i data-lucide="line-chart" class="w-5 h-5"></i><span class="text-[10px] font-medium">Arus Kas</span></button>
+        <button onclick="navigateTo('riwayat')" class="flex flex-col items-center gap-1 min-w-[70px] ${state.view === 'riwayat' ? 'text-laleh-mocha' : 'text-gray-400'}"><i data-lucide="receipt" class="w-5 h-5"></i><span class="text-[10px] font-medium">Pengeluaran</span></button>
+        <button onclick="navigateTo('arsip')" class="flex flex-col items-center gap-1 min-w-[70px] ${state.view === 'arsip' ? 'text-laleh-mocha' : 'text-gray-400'}"><i data-lucide="folder-archive" class="w-5 h-5"></i><span class="text-[10px] font-medium">Tutup Buku</span></button>
+        <button onclick="navigateTo('kategori')" class="flex flex-col items-center gap-1 min-w-[70px] ${state.view === 'kategori' ? 'text-laleh-mocha' : 'text-gray-400'}"><i data-lucide="tags" class="w-5 h-5"></i><span class="text-[10px] font-medium">Kategori</span></button>
+        <button onclick="safeRedirect('admin')" class="flex flex-col items-center gap-1 min-w-[70px] text-gray-400 pr-2 border-l border-gray-100 pl-2 ml-2"><i data-lucide="arrow-left-circle" class="w-5 h-5"></i><span class="text-[10px] font-medium">Admin</span></button>
+    </div>
+    `;
+}
+
+function renderApp() {
+    if (!state.user) return; 
+
+    let content = '';
+
+    if (state.view === 'ringkasan') {
+        const labaClass = state.financeStats.labaBersih >= 0 ? 'text-green-500' : 'text-red-500';
+        const labaIcon = state.financeStats.labaBersih >= 0 ? 'trending-up' : 'trending-down';
+        
+        content = `
+            <div class="p-6 md:p-10 max-w-6xl mx-auto pb-24 md:pb-10 relative">
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-end mb-8 gap-4">
+                    <div>
+                        <h2 class="text-2xl font-serif text-laleh-black mb-1">Arus Kas (Cash Flow)</h2>
+                        <p class="text-gray-500 text-sm">Ringkasan transaksi untuk periode PO yang sedang aktif saat ini.</p>
+                    </div>
+                </div>
+                
+                <div class="bg-laleh-black rounded-[32px] p-8 md:p-12 text-white shadow-2xl mb-8 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 card-hover">
+                    <div class="relative z-10 text-center md:text-left w-full md:w-auto">
+                        <div class="flex items-center justify-center md:justify-start gap-2 mb-3">
+                            <i data-lucide="${labaIcon}" class="w-5 h-5 ${labaClass}"></i>
+                            <p class="text-xs uppercase tracking-widest text-gray-300 font-bold">Net Profit (Laba Bersih Sementara)</p>
+                        </div>
+                        <h1 class="text-4xl md:text-5xl lg:text-6xl font-black ${labaClass} drop-shadow-md tracking-tight">Rp ${state.financeStats.labaBersih.toLocaleString('id-ID')}</h1>
+                        <p class="text-[10px] text-gray-400 mt-4 max-w-sm mx-auto md:mx-0 leading-relaxed">* Dana Masuk Real (Rp ${state.financeStats.danaMasuk.toLocaleString('id-ID')}) dikurangi Total Pengeluaran Aktif.</p>
+                    </div>
+                    <div class="relative z-10 w-full md:w-auto flex flex-col gap-3 shrink-0">
+                        <button onclick="prosesTutupBuku()" class="bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-2xl text-sm font-bold shadow-lg transition flex items-center justify-center gap-2 border border-red-500">
+                            <i data-lucide="archive-restore" class="w-5 h-5"></i> Tutup Buku Periode Ini
+                        </button>
+                        <p class="text-[9px] text-gray-400 text-center max-w-[200px] mt-1 mx-auto leading-tight">Klik tombol ini jika masa PO telah selesai untuk memindahkan data ke Arsip.</p>
+                    </div>
+                    
+                    <div class="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none transform translate-x-1/3 -translate-y-1/3"></div>
+                    <i data-lucide="wallet" class="absolute -right-6 -bottom-12 w-72 h-72 text-white/5 pointer-events-none transform rotate-12"></i>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div class="bg-green-50/50 p-6 sm:p-8 rounded-[24px] border border-green-100 shadow-sm card-hover flex flex-col justify-center">
+                        <div class="w-12 h-12 rounded-xl bg-green-100 text-green-600 flex items-center justify-center mb-4"><i data-lucide="arrow-down-to-line" class="w-6 h-6"></i></div>
+                        <p class="text-[11px] text-green-600 uppercase tracking-widest font-bold mb-1.5">Dana Masuk (Real)</p>
+                        <p class="text-2xl md:text-3xl font-bold text-green-700 truncate">Rp ${state.financeStats.danaMasuk.toLocaleString('id-ID')}</p>
+                    </div>
+                    <div class="bg-red-50/50 p-6 sm:p-8 rounded-[24px] border border-red-100 shadow-sm card-hover flex flex-col justify-center">
+                        <div class="w-12 h-12 rounded-xl bg-red-100 text-red-600 flex items-center justify-center mb-4"><i data-lucide="arrow-up-from-line" class="w-6 h-6"></i></div>
+                        <p class="text-[11px] text-red-500 uppercase tracking-widest font-bold mb-1.5">Pengeluaran Aktif</p>
+                        <p class="text-2xl md:text-3xl font-bold text-red-600 truncate">Rp ${state.financeStats.pengeluaran.toLocaleString('id-ID')}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    } 
+    // ==========================================
+    // HALAMAN 2: DATA PENGELUARAN (STICKY HEADER)
+    // ==========================================
+    else if (state.view === 'riwayat') {
+        const catOptions = state.categories.map(c => `<option value="${c}">${c}</option>`).join('');
+
+        // Variabel untuk Net Profit di Sticky Header
+        const sLaba = state.financeStats.labaBersih;
+        const lBg = sLaba >= 0 ? 'bg-blue-50/80 border-blue-100' : 'bg-red-50/80 border-red-100';
+        const lIconBg = sLaba >= 0 ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600';
+        const lText = sLaba >= 0 ? 'text-blue-700' : 'text-red-700';
+        const lLabel = sLaba >= 0 ? 'text-blue-600' : 'text-red-500';
+        const lIcon = sLaba >= 0 ? 'trending-up' : 'trending-down';
+
+        let expenseContentHtml = '';
+
+        if (state.expenseView === 'semua' || !state.expenseView) {
+            const rowsHtml = state.expenses.length > 0 ? state.expenses.map(e => `
+                <tr class="border-b border-gray-100 hover:bg-gray-50 transition group">
+                    <td class="py-2.5 px-4 text-[11px] align-middle whitespace-nowrap text-gray-500 font-medium">
+                        <div class="flex items-center gap-1.5">
+                            ${e.id && e.id.includes('TEMP') ? '<i data-lucide="loader-2" class="w-3.5 h-3.5 text-orange-400 animate-spin"></i>' : '<i data-lucide="calendar-check" class="w-3.5 h-3.5 text-gray-300"></i>'} 
+                            ${e.tanggal}
+                        </div>
+                    </td>
+                    <td class="py-2.5 px-4 align-middle">
+                        <span class="bg-orange-50 text-laleh-mocha font-bold px-2 py-1 rounded-md border border-orange-100 text-[9px] uppercase tracking-wide inline-block mb-1">${e.kategori}</span>
+                        <div class="text-gray-700 text-[11px] leading-relaxed max-w-sm truncate" title="${e.keterangan}">${e.keterangan}</div>
+                    </td>
+                    <td class="py-2.5 px-4 text-xs align-middle text-right font-black text-red-600 whitespace-nowrap">Rp ${Number(e.nominal).toLocaleString('id-ID')}</td>
+                    
+                    <td class="py-2.5 px-4 text-center align-middle w-24">
+                        ${e.bukti_url && e.bukti_url !== '#' ? `<a href="${e.bukti_url}" target="_blank" class="text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg text-[9px] font-bold transition inline-flex items-center gap-1 shadow-sm border border-blue-100 whitespace-nowrap"><i data-lucide="paperclip" class="w-3 h-3"></i> Bukti</a>` : '<span class="text-[9px] text-gray-400 italic">Tidak ada</span>'}
+                    </td>
+                    
+                    <td class="py-2.5 px-4 text-center align-middle w-16 sticky right-0 bg-white group-hover:bg-gray-50 transition-colors z-10 border-l border-gray-100 shadow-[-4px_0_12px_rgba(0,0,0,0.03)]">
+                        <button onclick="deleteExpense('${e.id}')" class="text-red-500 bg-red-50 hover:bg-red-100 hover:text-red-700 p-1.5 rounded-lg transition shadow-sm border border-red-100"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                    </td>
+                </tr>
+            `).join('') : `<tr><td colspan="5" class="py-12 text-center text-xs text-gray-400 bg-gray-50/50">Belum ada riwayat pengeluaran aktif.</td></tr>`;
+
+            expenseContentHtml = `
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto relative">
+                        <table class="w-full text-left border-collapse min-w-[700px]">
+                            <thead class="bg-gray-50 shadow-[0_2px_4px_rgba(0,0,0,0.02)]">
+                                <tr class="text-gray-500 text-[9px] uppercase tracking-wider border-b-2 border-gray-200">
+                                    <th class="py-3 px-4 font-bold w-32">Tanggal</th>
+                                    <th class="py-3 px-4 font-bold w-auto">Kategori & Keterangan</th>
+                                    <th class="py-3 px-4 font-bold text-right w-36">Nominal</th>
+                                    <th class="py-3 px-4 font-bold text-center w-24">Lampiran</th>
+                                    <th class="py-3 px-4 font-bold text-center w-16 sticky right-0 bg-gray-50 z-10 border-l border-gray-100 shadow-[-4px_0_12px_rgba(0,0,0,0.03)]">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rowsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        } else {
+            // TAMPILAN KELOMPOK PER KATEGORI
+            let groupedExpenses = {};
+            state.expenses.forEach(e => {
+                let kat = e.kategori || 'Tanpa Kategori';
+                if (!groupedExpenses[kat]) groupedExpenses[kat] = { total: 0, items: [] };
+                groupedExpenses[kat].items.push(e);
+                groupedExpenses[kat].total += (parseInt(e.nominal) || 0);
+            });
+
+            if (Object.keys(groupedExpenses).length > 0) {
+                let groupHtmlArray = [];
+                for (let kat in groupedExpenses) {
+                    let group = groupedExpenses[kat];
+                    let rHtml = group.items.map(e => `
+                        <tr class="border-b border-gray-100 hover:bg-gray-50 transition group">
+                            <td class="py-2.5 px-4 text-[11px] align-middle whitespace-nowrap text-gray-500 font-medium">
+                                <div class="flex items-center gap-1.5">
+                                    ${e.id && e.id.includes('TEMP') ? '<i data-lucide="loader-2" class="w-3.5 h-3.5 text-orange-400 animate-spin"></i>' : '<i data-lucide="calendar-check" class="w-3.5 h-3.5 text-gray-300"></i>'} 
+                                    ${e.tanggal}
+                                </div>
+                            </td>
+                            <td class="py-2.5 px-4 align-middle">
+                                <div class="text-gray-700 text-[11px] leading-relaxed max-w-sm truncate" title="${e.keterangan}">${e.keterangan}</div>
+                            </td>
+                            <td class="py-2.5 px-4 text-xs align-middle text-right font-black text-red-600 whitespace-nowrap">Rp ${Number(e.nominal).toLocaleString('id-ID')}</td>
+                            <td class="py-2.5 px-4 text-center align-middle w-24">
+                                ${e.bukti_url && e.bukti_url !== '#' ? `<a href="${e.bukti_url}" target="_blank" class="text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg text-[9px] font-bold transition inline-flex items-center gap-1 shadow-sm border border-blue-100 whitespace-nowrap"><i data-lucide="paperclip" class="w-3 h-3"></i> Bukti</a>` : '<span class="text-[9px] text-gray-400 italic">Tidak ada</span>'}
+                            </td>
+                            <td class="py-2.5 px-4 text-center align-middle w-16 sticky right-0 bg-white group-hover:bg-gray-50 transition-colors z-10 border-l border-gray-100 shadow-[-4px_0_12px_rgba(0,0,0,0.03)]">
+                                <button onclick="deleteExpense('${e.id}')" class="text-red-500 bg-red-50 hover:bg-red-100 hover:text-red-700 p-1.5 rounded-lg transition shadow-sm border border-red-100"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                            </td>
+                        </tr>
+                    `).join('');
+
+                    groupHtmlArray.push(`
+                        <div class="mb-5 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                            <div class="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                                <h3 class="font-bold text-gray-800 text-[11px] sm:text-xs uppercase tracking-wide flex items-center gap-2"><i data-lucide="tag" class="w-4 h-4 text-laleh-mocha"></i> ${kat}</h3>
+                                <span class="bg-white border border-gray-200 text-gray-600 px-3 py-1 rounded-full text-[9px] font-bold shadow-sm">${group.items.length} Data</span>
+                            </div>
+                            <div class="overflow-x-auto relative">
+                                <table class="w-full text-left border-collapse min-w-[600px]">
+                                    <thead class="bg-white shadow-[0_2px_4px_rgba(0,0,0,0.02)] border-b border-gray-100">
+                                        <tr class="text-gray-500 text-[9px] uppercase tracking-wider">
+                                            <th class="py-2.5 px-4 font-bold w-32">Tanggal</th>
+                                            <th class="py-2.5 px-4 font-bold w-auto">Keterangan</th>
+                                            <th class="py-2.5 px-4 font-bold text-right w-36">Nominal</th>
+                                            <th class="py-2.5 px-4 font-bold text-center w-24">Lampiran</th>
+                                            <th class="py-2.5 px-4 font-bold text-center w-16 sticky right-0 bg-white z-10 border-l border-gray-100">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${rHtml}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="bg-[#fdfaf8] border-t border-gray-200 px-5 py-3 flex justify-between items-center">
+                                <span class="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Subtotal Kategori</span>
+                                <span class="text-sm font-bold text-red-600">Rp ${group.total.toLocaleString('id-ID')}</span>
+                            </div>
+                        </div>
+                    `);
+                }
+                expenseContentHtml = groupHtmlArray.join('');
+            } else {
+                expenseContentHtml = `<div class="py-12 text-center text-xs text-gray-400 font-medium bg-white rounded-2xl border border-gray-100 shadow-sm">Belum ada riwayat pengeluaran aktif.</div>`;
+            }
+        }
+
+        content = `
+            <div class="max-w-6xl mx-auto pb-24 md:pb-10 relative">
+                
+                <!-- STICKY HEADER AREA -->
+                <div class="sticky top-[68px] md:top-0 z-30 bg-laleh-bg pt-4 md:pt-6 px-6 md:px-10 pb-4 border-b border-gray-200/80 shadow-sm flex flex-col gap-3">
+                    
+                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3">
+                        <div>
+                            <h2 class="text-xl font-serif text-laleh-black leading-tight">Data Pengeluaran Aktif</h2>
+                            <p class="text-gray-500 text-[11px] mt-0.5">Catat uang keluar yang terjadi pada periode PO berjalan.</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                            <!-- TOMBOL TAMPILAN VIEW KATEGORI -->
+                            <select onchange="changeExpenseView(this.value)" class="flex-1 sm:flex-none text-xs border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-laleh-mocha bg-white shadow-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-50 transition min-w-[140px]">
+                                <option value="semua" ${state.expenseView === 'semua' || !state.expenseView ? 'selected' : ''}>Semua Pengeluaran</option>
+                                <option value="per_kategori" ${state.expenseView === 'per_kategori' ? 'selected' : ''}>Kelompokkan Kategori</option>
+                            </select>
+                            
+                            <button onclick="openExpenseModal()" class="bg-laleh-black text-white px-4 py-2 rounded-xl text-xs font-bold shadow hover:bg-gray-800 transition flex items-center justify-center gap-1.5 flex-1 sm:flex-none">
+                                <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Catat
+                            </button>
+                            <button onclick="exportExpenses()" class="bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow hover:bg-green-700 transition flex items-center justify-center gap-1.5 flex-1 sm:flex-none">
+                                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Export
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- KARTU RINGKASAN MINI (MENYEMPIT DAN STICKY) -->
+                    <div class="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                        <div class="bg-green-50/80 py-2 px-3 sm:px-4 rounded-xl border border-green-100 shadow-sm flex items-center gap-2.5 flex-1 min-w-[160px]">
+                            <div class="w-7 h-7 rounded-lg bg-green-100 text-green-600 flex items-center justify-center shrink-0"><i data-lucide="arrow-down-to-line" class="w-4 h-4"></i></div>
+                            <div class="min-w-0">
+                                <p class="text-[9px] text-green-600 uppercase tracking-widest font-bold mb-0.5 truncate">Dana Masuk</p>
+                                <p class="text-sm font-bold text-green-700 truncate leading-none">Rp ${state.financeStats.danaMasuk.toLocaleString('id-ID')}</p>
+                            </div>
+                        </div>
+                        <div class="bg-red-50/80 py-2 px-3 sm:px-4 rounded-xl border border-red-100 shadow-sm flex items-center gap-2.5 flex-1 min-w-[160px]">
+                            <div class="w-7 h-7 rounded-lg bg-red-100 text-red-600 flex items-center justify-center shrink-0"><i data-lucide="arrow-up-from-line" class="w-4 h-4"></i></div>
+                            <div class="min-w-0">
+                                <p class="text-[9px] text-red-500 uppercase tracking-widest font-bold mb-0.5 truncate">Pengeluaran</p>
+                                <p class="text-sm font-bold text-red-600 truncate leading-none">Rp ${state.financeStats.pengeluaran.toLocaleString('id-ID')}</p>
+                            </div>
+                        </div>
+                        <div class="${lBg} py-2 px-3 sm:px-4 rounded-xl border shadow-sm flex items-center gap-2.5 flex-1 min-w-[160px]">
+                            <div class="w-7 h-7 rounded-lg ${lIconBg} flex items-center justify-center shrink-0"><i data-lucide="${lIcon}" class="w-4 h-4"></i></div>
+                            <div class="min-w-0">
+                                <p class="text-[9px] ${lLabel} uppercase tracking-widest font-bold mb-0.5 truncate">Net Profit</p>
+                                <p class="text-sm font-bold ${lText} truncate leading-none">Rp ${sLaba.toLocaleString('id-ID')}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 md:px-10 mt-4 relative z-10">
+                    ${expenseContentHtml}
+                </div>
+
+                <!-- MODAL (POP UP) CATAT PENGELUARAN -->
+                <div id="modal-expense" class="fixed inset-0 z-[60] hidden bg-black/60 backdrop-blur-sm items-center justify-center p-4 sm:p-6">
+                    <div class="bg-white rounded-[32px] w-full max-w-2xl flex flex-col shadow-2xl relative overflow-hidden max-h-[95vh]">
+                        <div class="absolute right-0 top-0 w-32 h-32 bg-orange-50 rounded-bl-full -z-0 opacity-50 pointer-events-none"></div>
+                        
+                        <div class="px-6 py-5 border-b border-gray-100 flex justify-between items-center shrink-0 relative z-10">
+                            <h3 class="text-lg font-serif font-bold text-laleh-black flex items-center gap-2"><i data-lucide="wallet" class="w-5 h-5 text-laleh-mocha"></i> Form Pengeluaran</h3>
+                            <button type="button" onclick="closeExpenseModal()" class="w-8 h-8 flex items-center justify-center bg-gray-100 text-gray-500 hover:bg-red-100 hover:text-red-500 rounded-full transition">
+                                <i data-lucide="x" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="p-6 sm:p-8 overflow-y-auto custom-scroll relative z-10">
+                            <form id="formExpense" onsubmit="submitExpense(event)" class="space-y-5">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">Tanggal Transaksi</label>
+                                        <div class="relative">
+                                            <i data-lucide="calendar" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                                            <input type="date" id="e_tgl" required class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:border-laleh-mocha outline-none text-sm bg-gray-50 focus:bg-white transition">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">Kategori Pengeluaran</label>
+                                        <select id="e_kat" required class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-laleh-mocha outline-none text-sm bg-gray-50 focus:bg-white transition cursor-pointer">
+                                            <option value="" disabled selected hidden>Pilih Kategori...</option>
+                                            ${catOptions}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-700 mb-1.5">Nominal Pengeluaran (Rp)</label>
+                                    <div class="relative">
+                                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-laleh-mocha">Rp</span>
+                                        <input type="number" id="e_nom" min="0" required placeholder="0" class="w-full pl-12 pr-4 py-3 border-2 border-orange-100 rounded-xl focus:border-laleh-mocha outline-none text-2xl font-black text-laleh-mocha bg-orange-50/20 transition">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-700 mb-1.5">Keterangan / Deskripsi</label>
+                                    <textarea id="e_ket" rows="3" required placeholder="Cth: Pembelian kain maxmara 10 roll di Tanah Abang..." class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-laleh-mocha outline-none text-sm bg-gray-50 focus:bg-white transition"></textarea>
+                                </div>
+
+                                <div class="p-3 bg-gray-50 border border-gray-200 rounded-xl border-dashed">
+                                    <label class="block text-[11px] font-bold text-gray-700 mb-1 flex items-center gap-1.5"><i data-lucide="paperclip" class="w-3 h-3"></i> Lampirkan Bukti (Opsional)</label>
+                                    <p class="text-[9px] text-gray-500 mb-2">Bisa berupa foto struk, invoice (JPG/PNG) atau PDF/DOC. Maksimal 5MB.</p>
+                                    <input type="file" id="e_file" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" class="w-full text-xs text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-[10px] file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition cursor-pointer">
+                                </div>
+
+                                <div class="pt-2 flex justify-end gap-2">
+                                    <button type="button" onclick="closeExpenseModal()" class="px-5 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition">Batal</button>
+                                    <button type="submit" id="btnSaveExpense" class="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-laleh-black hover:bg-gray-800 shadow-xl transition flex items-center justify-center gap-1.5">
+                                        <i data-lucide="save" class="w-3.5 h-3.5"></i> Simpan
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        `;
+    }
+    // ==========================================
+    // HALAMAN 3: ARSIP TUTUP BUKU
+    // ==========================================
+    else if (state.view === 'arsip') {
+        const arsipHtml = state.history && state.history.length > 0 ? state.history.map(h => {
+            const labaClass = h.summary.labaBersih >= 0 ? 'text-green-600' : 'text-red-600';
+            return `
+            <div class="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition card-hover relative overflow-hidden flex flex-col">
+                <div class="absolute right-0 top-0 w-24 h-24 bg-gray-50 rounded-bl-full -z-0 opacity-50 pointer-events-none"></div>
+                
+                <div class="flex justify-between items-start mb-4 relative z-10">
+                    <div>
+                        <h3 class="font-serif font-bold text-lg text-gray-800">${h.name}</h3>
+                        <p class="text-[10px] text-gray-400 mt-1 flex items-center gap-1"><i data-lucide="calendar" class="w-3 h-3"></i> Tgl Tutup: ${h.date}</p>
+                    </div>
+                    <button onclick="gantiNamaArsip('${h.id}', '${h.name}')" class="text-gray-400 hover:text-laleh-mocha p-1 rounded-md hover:bg-gray-100 transition" title="Ganti Nama Periode"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                </div>
+                
+                <div class="space-y-2 mb-6 flex-1 relative z-10">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-500">Omset/Dana Masuk:</span>
+                        <span class="font-semibold text-gray-700">Rp ${Number(h.summary.danaMasuk).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-500">Total Pengeluaran:</span>
+                        <span class="font-semibold text-red-500">Rp ${Number(h.summary.pengeluaran).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div class="flex justify-between text-sm font-bold pt-3 mt-2 border-t border-dashed border-gray-200">
+                        <span class="text-gray-800">Net Profit:</span>
+                        <span class="${labaClass}">Rp ${Number(h.summary.labaBersih).toLocaleString('id-ID')}</span>
+                    </div>
+                </div>
+                
+                <button onclick="bukaDetailArsip('${h.id}')" class="w-full bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 relative z-10">
+                    <i data-lucide="folder-open" class="w-4 h-4"></i> Lihat Detail Pengeluaran
+                </button>
+            </div>
+            `;
+        }).join('') : `
+            <div class="col-span-1 md:col-span-3 py-16 text-center bg-white rounded-[24px] border border-gray-100 shadow-sm">
+                <i data-lucide="folder-archive" class="w-12 h-12 text-gray-300 mx-auto mb-3"></i>
+                <p class="text-gray-500 font-medium">Belum ada arsip tutup buku.</p>
+                <p class="text-xs text-gray-400 mt-1">Lakukan "Tutup Buku" di menu Dashboard Arus Kas.</p>
+            </div>
+        `;
+
+        content = `
+            <div class="p-6 md:p-10 max-w-6xl mx-auto pb-24 md:pb-10">
+                <div class="mb-8">
+                    <h2 class="text-2xl font-serif text-laleh-black mb-1">Arsip Tutup Buku</h2>
+                    <p class="text-gray-500 text-sm">Riwayat periode keuangan yang sudah selesai dan ditutup.</p>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    ${arsipHtml}
+                </div>
+
+                <!-- MODAL DETAIL ARSIP -->
+                <div id="modal-detail-arsip" class="fixed inset-0 z-[60] hidden bg-black/60 backdrop-blur-sm items-center justify-center p-4 sm:p-6">
+                    <div class="bg-white rounded-[24px] w-full max-w-4xl max-h-[95vh] flex flex-col shadow-2xl relative overflow-hidden">
+                        <div class="px-6 py-5 border-b border-gray-100 flex justify-between items-center shrink-0 bg-gray-50/50">
+                            <div>
+                                <h3 id="ad_name" class="text-lg font-serif font-bold text-laleh-black leading-tight">Nama Periode</h3>
+                                <p class="text-[10px] text-gray-500 mt-0.5">Diarsipkan pada: <span id="ad_date"></span></p>
+                            </div>
+                            <button type="button" onclick="tutupDetailArsip()" class="w-8 h-8 flex items-center justify-center bg-white text-gray-500 hover:bg-red-100 hover:text-red-500 rounded-full transition shadow-sm border border-gray-200">
+                                <i data-lucide="x" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="p-6 overflow-y-auto custom-scroll flex-1">
+                            <div class="grid grid-cols-3 gap-4 mb-6">
+                                <div class="bg-green-50 p-4 rounded-xl border border-green-100">
+                                    <p class="text-[10px] uppercase font-bold text-green-600 tracking-wider mb-1">Dana Masuk</p>
+                                    <p id="ad_omset" class="text-lg font-bold text-green-700">Rp 0</p>
+                                </div>
+                                <div class="bg-red-50 p-4 rounded-xl border border-red-100">
+                                    <p class="text-[10px] uppercase font-bold text-red-500 tracking-wider mb-1">Pengeluaran</p>
+                                    <p id="ad_exp" class="text-lg font-bold text-red-600">Rp 0</p>
+                                </div>
+                                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                    <p class="text-[10px] uppercase font-bold text-blue-500 tracking-wider mb-1">Net Profit</p>
+                                    <p id="ad_profit" class="text-lg font-bold">Rp 0</p>
+                                </div>
+                            </div>
+                            
+                            <h4 class="font-bold text-sm text-gray-800 mb-3 border-b border-gray-100 pb-2">Rincian Pengeluaran</h4>
+                            <div class="overflow-x-auto border border-gray-200 rounded-xl">
+                                <table class="w-full text-left min-w-[600px]">
+                                    <thead class="bg-gray-50 border-b border-gray-200">
+                                        <tr class="text-gray-500 text-[10px] uppercase tracking-wider">
+                                            <th class="py-3 px-3 font-bold">Tanggal</th>
+                                            <th class="py-3 px-3 font-bold">Kategori</th>
+                                            <th class="py-3 px-3 font-bold w-1/2">Keterangan</th>
+                                            <th class="py-3 px-3 font-bold text-right">Nominal</th>
+                                            <th class="py-3 px-3 font-bold text-center">Bukti</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ad_table_body" class="bg-white">
+                                        <!-- Diisi via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    // ==========================================
+    // HALAMAN 4: MASTER KATEGORI PENGELUARAN
+    // ==========================================
+    else if (state.view === 'kategori') {
+        const catHtml = state.categories.length > 0 ? state.categories.map(c => `
+            <div class="flex justify-between items-center bg-white border border-gray-200 px-5 py-3.5 rounded-xl mb-3 shadow-sm kat-item transition hover:border-laleh-mocha">
+                <span class="text-sm font-bold text-gray-700 k-name">${c}</span>
+                <button type="button" onclick="this.parentElement.remove()" class="text-red-500 bg-red-50 border border-red-100 hover:bg-red-100 p-2 rounded-lg transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            </div>
+        `).join('') : `<p class="text-sm text-gray-400 text-center py-8 bg-white rounded-xl border border-dashed border-gray-300">Belum ada kategori tersimpan.</p>`;
+
+        content = `
+            <div class="p-6 md:p-10 max-w-2xl mx-auto pb-24 md:pb-10">
+                <div class="mb-8">
+                    <h2 class="text-2xl font-serif text-laleh-black mb-1">Master Kategori</h2>
+                    <p class="text-gray-500 text-sm">Kelola daftar pilihan dropdown kategori pengeluaran.</p>
+                </div>
+                
+                <div class="bg-white rounded-[32px] border border-gray-100 shadow-sm p-6 sm:p-10">
+                    <div class="flex gap-3 mb-8">
+                        <input type="text" id="input_new_kat" placeholder="Ketik nama kategori baru..." class="flex-1 px-5 py-3.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-laleh-mocha bg-gray-50 focus:bg-white transition font-semibold" onkeypress="if(event.key === 'Enter') addCategoryUi()">
+                        <button type="button" onclick="addCategoryUi()" class="bg-laleh-mocha text-white px-6 py-3.5 rounded-xl text-sm font-bold hover:bg-laleh-mochaHover shadow-lg transition flex items-center justify-center shrink-0 gap-2">
+                            <i data-lucide="plus" class="w-4 h-4"></i> Tambah
+                        </button>
+                    </div>
+                    
+                    <div class="bg-stone-50 border border-gray-200 rounded-2xl p-5 min-h-[300px] max-h-[500px] overflow-y-auto custom-scroll mb-8" id="list_kat_container">
+                        ${catHtml}
+                    </div>
+                    
+                    <div class="border-t border-gray-100 pt-6 flex justify-end">
+                        <button type="button" id="btnSaveKat" onclick="saveCategories()" class="w-full sm:w-auto px-8 py-3.5 rounded-xl text-sm font-bold text-white bg-green-600 hover:bg-green-700 shadow-lg transition flex items-center justify-center gap-2">
+                            <i data-lucide="check-circle" class="w-4 h-4"></i> Simpan Perubahan
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Eksekusi Render
+    document.getElementById('app').innerHTML = `
+        ${Sidebar()}
+        <main class="flex-1 bg-laleh-bg h-screen overflow-y-auto w-full relative">
+            <div class="md:hidden bg-white p-5 border-b border-gray-100 flex justify-between items-center sticky top-0 z-40 shadow-sm">
+                <h1 class="text-lg font-serif font-bold tracking-widest text-laleh-mocha uppercase">FINANCE</h1>
+                <button onclick="handleLogout()" class="text-red-400"><i data-lucide="log-out" class="w-5 h-5"></i></button>
+            </div>
+            ${content}
+        </main>
+    `;
+    lucide.createIcons();
+}
+</script>
+</body>
+</html>
