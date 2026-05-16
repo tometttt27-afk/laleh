@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <base target="_top"> 
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Atur Ulang Kata Sandi - Laleh.id</title>
+    
+    <!-- Fonts & Tailwind CSS -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { 
+                extend: { 
+                    fontFamily: { 
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'], 
+                        serif: ['Lora', 'serif'] 
+                    }, 
+                    colors: { 
+                        laleh: { 
+                            mocha: '#825E4A', 
+                            black: '#111111', 
+                            bg: '#F9FAFB' 
+                        } 
+                    } 
+                } 
+            }
+        }
+    </script>
+    
+    <!-- SweetAlert2 & Lucide Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        body { 
+            background-color: #F9FAFB; 
+            -webkit-tap-highlight-color: transparent; 
+        }
+        input { 
+            transition: all 0.2s ease; 
+            border: 1px solid #E5E7EB; 
+            min-height: 52px; 
+            font-size: 16px !important; 
+        }
+        input:focus { 
+            border-color: #825E4A; 
+            outline: none; 
+            box-shadow: 0 0 0 3px rgba(130, 94, 74, 0.15); 
+        }
+        .strength-bar { 
+            height: 4px; 
+            border-radius: 2px; 
+            transition: all 0.4s ease; 
+            width: 0%; 
+            margin-top: 6px; 
+        }
+        .swal2-styled.swal2-confirm { 
+            background-color: #825E4A !important; 
+            border-radius: 12px !important; 
+            font-weight: 600 !important; 
+        }
+        .password-toggle { 
+            position: absolute; 
+            right: 12px; 
+            top: 50%; 
+            transform: translateY(-50%); 
+            color: #9CA3AF; 
+            cursor: pointer; 
+            padding: 8px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800">
+
+    <div class="min-h-screen flex flex-col justify-center items-center p-4 sm:p-12">
+        <div class="w-full max-w-md bg-white p-8 sm:p-10 rounded-[32px] shadow-[0_8px_32px_rgba(0,0,0,0.04)] border border-gray-100 shadow-sm">
+            
+            <div class="text-center mb-8">
+                <div class="inline-flex p-4 bg-stone-50 rounded-full text-laleh-mocha mb-4">
+                    <i data-lucide="shield-check" class="w-10 h-10"></i>
+                </div>
+                <h2 class="text-2xl sm:text-3xl font-serif text-laleh-black">Kata Sandi Baru</h2>
+                <p class="text-gray-400 text-sm mt-2">
+                    Mengatur ulang akun: <span class="font-semibold text-laleh-black italic"><?= emailParam ?></span>
+                </p>
+            </div>
+
+            <form id="resetForm" onsubmit="handleReset(event)" class="space-y-5">
+                <!-- Password Field -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Kata Sandi Baru</label>
+                    <div class="relative">
+                        <input id="newPassword" type="password" required 
+                               class="w-full pl-4 pr-12 rounded-xl bg-gray-50 focus:bg-white" 
+                               placeholder="Minimal 8 karakter" 
+                               oninput="checkStrength(this.value)">
+                        <button type="button" class="password-toggle" onclick="togglePass('newPassword', this)">
+                            <i data-lucide="eye" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <!-- Password Strength Bar -->
+                    <div class="w-full bg-gray-100 rounded-full h-1 mt-2 overflow-hidden">
+                        <div id="strength-bar" class="strength-bar"></div>
+                    </div>
+                    <p id="strength-text" class="text-[10px] mt-1 font-medium"></p>
+                </div>
+
+                <!-- Confirm Password Field -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Konfirmasi Kata Sandi</label>
+                    <div class="relative">
+                        <input id="confirmPassword" type="password" required 
+                               class="w-full pl-4 pr-12 rounded-xl bg-gray-50 focus:bg-white" 
+                               placeholder="Ulangi kata sandi baru">
+                        <button type="button" class="password-toggle" onclick="togglePass('confirmPassword', this)">
+                            <i data-lucide="eye" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" id="btnSubmit" class="w-full bg-laleh-mocha text-white font-semibold p-4 rounded-xl hover:bg-[#6d4d3c] transition shadow-lg mt-4 flex items-center justify-center gap-2">
+                    <i data-lucide="save" class="w-5 h-5"></i> Perbarui Kata Sandi
+                </button>
+            </form>
+
+            <div class="mt-8 pt-6 border-t border-gray-50 text-center">
+                <a href="<?= url ?>?page=signin" class="text-sm text-gray-400 hover:text-laleh-mocha transition font-medium">
+                    Batal dan Kembali ke Login
+                </a>
+            </div>
+        </div>
+        
+        <p class="mt-8 text-[10px] text-gray-400 uppercase tracking-widest font-semibold">
+            &copy; 2024 Laleh.id
+        </p>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        function togglePass(id, btn) {
+            const input = document.getElementById(id);
+            const icon = btn.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.setAttribute('data-lucide', 'eye-off');
+            } else {
+                input.type = 'password';
+                icon.setAttribute('data-lucide', 'eye');
+            }
+            lucide.createIcons();
+        }
+
+        function checkStrength(val) {
+            const bar = document.getElementById('strength-bar');
+            const text = document.getElementById('strength-text');
+            const hasLetter = /[a-zA-Z]/.test(val);
+            const hasNumber = /[0-9]/.test(val);
+
+            if (val.length === 0) {
+                bar.style.width = "0%";
+                text.innerText = "";
+                return;
+            }
+
+            if (val.length < 8) {
+                bar.style.width = "30%";
+                bar.style.backgroundColor = "#EF4444"; // Merah
+                text.innerText = "Terlalu pendek (Min. 8 karakter)";
+                text.style.color = "#EF4444";
+            } else {
+                if (hasNumber && !hasLetter) {
+                    bar.style.width = "60%";
+                    bar.style.backgroundColor = "#FBBF24"; // Kuning
+                    text.innerText = "Gunakan kombinasi huruf";
+                    text.style.color = "#FBBF24";
+                } else if (hasNumber && hasLetter) {
+                    bar.style.width = "100%";
+                    bar.style.backgroundColor = "#10B981"; // Hijau
+                    text.innerText = "Sempurna (Sangat Kuat)";
+                    text.style.color = "#10B981";
+                } else {
+                    bar.style.width = "60%";
+                    bar.style.backgroundColor = "#FBBF24"; // Kuning
+                    text.innerText = "Tambahkan angka agar lebih kuat";
+                    text.style.color = "#FBBF24";
+                }
+            }
+        }
+
+        function handleReset(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnSubmit');
+            const pass = document.getElementById('newPassword').value;
+            const confirm = document.getElementById('confirmPassword').value;
+            const email = "<?= emailParam ?>";
+
+            if (pass.length < 8) {
+                Swal.fire('Error', 'Sandi minimal 8 karakter.', 'error');
+                return;
+            }
+            if (!/[a-zA-Z]/.test(pass) || !/[0-9]/.test(pass)) {
+                Swal.fire('Peringatan', 'Sandi harus mengandung kombinasi Huruf dan Angka.', 'warning');
+                return;
+            }
+            if (pass !== confirm) {
+                Swal.fire('Gagal', 'Konfirmasi kata sandi tidak sesuai.', 'error');
+                return;
+            }
+
+            btn.innerHTML = "Menyimpan...";
+            btn.disabled = true;
+
+            if (typeof google === 'undefined') {
+                Swal.fire('Info', 'Mode Preview UI Aktif.', 'info');
+                btn.innerHTML = "Perbarui Kata Sandi";
+                btn.disabled = false;
+                return;
+            }
+
+            // Memanggil fungsi updatePasswordBaru dari DbUser.gs
+            google.script.run
+                .withSuccessHandler((res) => {
+                    if (res.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil',
+                            text: res.message,
+                            confirmButtonColor: '#825E4A'
+                        }).then(() => {
+                            try {
+                                window.top.location.href = "<?= url ?>?page=signin";
+                            } catch(e) {
+                                window.location.href = "<?= url ?>?page=signin";
+                            }
+                        });
+                    } else {
+                        Swal.fire('Gagal', res.message, 'error');
+                        btn.innerHTML = "Perbarui Kata Sandi";
+                        btn.disabled = false;
+                    }
+                })
+                .withFailureHandler((err) => {
+                    Swal.fire('Error', 'Sistem gagal: ' + err, 'error');
+                    btn.innerHTML = "Perbarui Kata Sandi";
+                    btn.disabled = false;
+                })
+                .updatePasswordBaru(email, pass);
+        }
+    </script>
+</body>
+</html>
