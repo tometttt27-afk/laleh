@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <base target="_top"> 
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Lupa Password - Laleh.id</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { 
+                extend: { 
+                    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'], serif: ['Lora', 'serif'] }, 
+                    colors: { laleh: { mocha: '#825E4A', black: '#111111', bg: '#F9FAFB' } } 
+                } 
+            }
+        }
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        body { background-color: #F9FAFB; -webkit-tap-highlight-color: transparent; }
+        input { transition: all 0.2s ease; border: 1px solid #E5E7EB; min-height: 52px; font-size: 16px !important; }
+        input:focus { border-color: #825E4A; outline: none; box-shadow: 0 0 0 3px rgba(130, 94, 74, 0.15); }
+        .swal2-styled.swal2-confirm { background-color: #825E4A !important; border-radius: 12px !important; }
+    </style>
+</head>
+<body class="antialiased text-gray-800">
+
+    <div class="min-h-screen flex flex-col justify-center items-center p-4 sm:p-12 bg-laleh-bg">
+        <div class="w-full max-w-md bg-white p-8 sm:p-10 rounded-3xl shadow-sm border border-gray-100 text-center">
+            
+            <div class="flex justify-center mb-6 text-laleh-mocha">
+                <div class="p-4 bg-orange-50 rounded-full">
+                    <i data-lucide="key-round" class="w-10 h-10"></i>
+                </div>
+            </div>
+
+            <h2 class="text-2xl sm:text-3xl font-serif text-laleh-black mb-2">Lupa Password?</h2>
+            <p class="text-gray-400 text-sm mb-8 leading-relaxed">
+                Masukkan email Anda untuk menerima instruksi pemulihan kata sandi melalui email.
+            </p>
+            
+            <form id="forgotForm" onsubmit="handleForgot(event)" class="space-y-5">
+                <div class="text-left">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email Terdaftar</label>
+                    <input id="email" type="email" required class="w-full px-4 rounded-xl bg-gray-50" placeholder="email@contoh.com">
+                </div>
+                
+                <button type="submit" id="btnSubmit" class="w-full bg-laleh-mocha text-white font-medium p-4 rounded-xl hover:bg-[#6d4d3c] transition shadow-lg">
+                    Kirim Instruksi
+                </button>
+            </form>
+            
+            <div class="mt-8 pt-6 border-t border-gray-100">
+                <a href="<?= typeof url !== 'undefined' ? url : '' ?>?page=signin" class="flex items-center justify-center gap-2 text-sm text-gray-500 hover:text-laleh-mocha font-medium transition">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i> Kembali ke Login
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        function handleForgot(e) {
+            e.preventDefault();
+            const emailValue = document.getElementById('email').value;
+            const btn = document.getElementById('btnSubmit');
+
+            btn.innerHTML = "Memverifikasi...";
+            btn.disabled = true;
+
+            if (typeof google === 'undefined') {
+                Swal.fire('Info', 'Mode Preview UI Aktif.', 'info');
+                btn.innerHTML = "Kirim Instruksi";
+                btn.disabled = false;
+                return;
+            }
+
+            // PANGGIL BACKEND
+            google.script.run
+                .withSuccessHandler(function(res) {
+                    btn.innerHTML = "Kirim Instruksi";
+                    btn.disabled = false;
+
+                    if (res.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Email Terdaftar',
+                            text: res.message,
+                            confirmButtonColor: '#825E4A'
+                        }).then(() => {
+                            window.top.location.href = "<?= typeof url !== 'undefined' ? url : '' ?>?page=signin";
+                        });
+                    } else {
+                        Swal.fire('Email Salah', res.message, 'warning');
+                    }
+                })
+                .withFailureHandler(function(err) {
+                    btn.innerHTML = "Kirim Instruksi";
+                    btn.disabled = false;
+                    Swal.fire('Error Izin', 'Pesan: ' + err.message, 'error');
+                })
+                .cekEmailTerdaftar(emailValue);
+        }
+    </script>
+</body>
+</html>
