@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <base target="_top"> 
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Daftar Agen - Laleh.id</title>
+    
+    <!-- Fonts & Tailwind CSS -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { 
+                extend: { 
+                    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'], serif: ['Lora', 'serif'] }, 
+                    colors: { laleh: { mocha: '#825E4A', black: '#111111', bg: '#F9FAFB' } } 
+                } 
+            }
+        }
+    </script>
+    
+    <!-- SweetAlert2 & Lucide Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        body { background-color: #F9FAFB; -webkit-tap-highlight-color: transparent; }
+        input { transition: all 0.2s ease; border: 1px solid #E5E7EB; min-height: 52px; font-size: 16px !important; }
+        input:focus { border-color: #825E4A; outline: none; box-shadow: 0 0 0 3px rgba(130, 94, 74, 0.15); }
+        .password-toggle { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #9CA3AF; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; }
+        .strength-bar { height: 4px; border-radius: 2px; transition: all 0.4s ease; width: 0%; margin-top: 6px; }
+        .swal2-styled.swal2-confirm { background-color: #825E4A !important; border-radius: 12px !important; font-weight: 600 !important; }
+    </style>
+</head>
+<body class="antialiased text-gray-800">
+
+    <div class="min-h-screen flex flex-col lg:flex-row">
+        <!-- Kolom Kiri -->
+        <div class="hidden lg:flex w-1/2 bg-laleh-mocha items-center justify-center relative overflow-hidden">
+            <img src="https://drive.google.com/thumbnail?id=1oq1MDys1F-2QWtLrWsnqSihloz6QPxTi&sz=w1000" alt="Laleh Registration" class="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-multiply">
+            <div class="relative z-10 text-center text-white p-12 flex flex-col items-center">
+                <img src="https://drive.google.com/thumbnail?id=1MGpOxtXzSPok0B86nQHNy5pd4i1Vs1S7&sz=w1000" alt="Logo Laleh" class="h-32 lg:h-40 mb-4 drop-shadow-md object-contain">
+                <p class="text-lg font-light tracking-wide italic">"Elegan Tanpa Berlebihan, Anggun Sesuai Tuntunan."</p>
+            </div>
+        </div>
+
+        <!-- Kolom Kanan -->
+        <div class="w-full lg:w-1/2 flex flex-col justify-center items-center p-4 sm:p-12 min-h-screen lg:min-h-0 bg-laleh-bg lg:bg-white">
+            <div class="w-full max-w-md bg-white p-6 sm:p-10 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden min-h-[550px]">
+                
+                <div class="lg:hidden text-center mb-6 flex justify-center">
+                    <img src="https://drive.google.com/thumbnail?id=1MGpOxtXzSPok0B86nQHNy5pd4i1Vs1S7&sz=w1000" alt="Logo Laleh" class="h-16 sm:h-20 object-contain">
+                </div>
+
+                <!-- ============================================== -->
+                <!-- TAHAP 1: FORM REGISTER -->
+                <!-- ============================================== -->
+                <div id="step-register">
+                    <h2 class="text-2xl sm:text-3xl font-serif text-laleh-black mb-1 text-center lg:text-left">Daftar Agen</h2>
+                    <p class="text-gray-400 text-sm mb-6 text-center lg:text-left">Bergabunglah menjadi mitra resmi Laleh.</p>
+                    
+                    <form id="registerForm" onsubmit="handleSignUp(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap Agen</label>
+                            <input id="nama" type="text" required class="w-full px-4 rounded-xl bg-gray-50" placeholder="Masukkan nama Agen">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email Aktif</label>
+                            <input id="email" type="email" required class="w-full px-4 rounded-xl bg-gray-50" placeholder="email@contoh.com">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                            <div class="relative">
+                                <input id="password" type="password" required class="w-full pl-4 pr-12 rounded-xl bg-gray-50" placeholder="Min. 8 karakter + Angka" oninput="checkStrength(this.value)">
+                                <button type="button" class="password-toggle" onclick="togglePass('password', this)">
+                                    <i data-lucide="eye" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                            <!-- Password Strength Bar -->
+                            <div class="w-full bg-gray-100 rounded-full h-1 mt-2 overflow-hidden">
+                                <div id="strength-bar" class="strength-bar"></div>
+                            </div>
+                            <p id="strength-text" class="text-[10px] mt-1 font-medium"></p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Konfirmasi Password</label>
+                            <div class="relative">
+                                <input id="confirmPassword" type="password" required class="w-full pl-4 pr-12 rounded-xl bg-gray-50" placeholder="Ulangi password">
+                                <button type="button" class="password-toggle" onclick="togglePass('confirmPassword', this)">
+                                    <i data-lucide="eye" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" id="btnSubmit" class="w-full bg-laleh-mocha text-white font-medium p-4 rounded-xl hover:bg-[#6d4d3c] transition shadow-lg mt-6">
+                            Daftar Sekarang
+                        </button>
+                    </form>
+                    
+                    <p class="text-center text-sm text-gray-500 mt-8">
+                        Sudah punya akun? 
+                        <a href="<?= typeof url !== 'undefined' ? url : '' ?>?page=signin" class="text-laleh-mocha font-semibold hover:underline transition">Masuk di sini</a>
+                    </p>
+                </div>
+
+                <!-- ============================================== -->
+                <!-- TAHAP 2: VERIFIKASI OTP -->
+                <!-- ============================================== -->
+                <div id="step-otp" class="hidden absolute inset-0 bg-white p-6 sm:p-10 flex flex-col justify-center text-center">
+                    <div class="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4 text-orange-500">
+                        <i data-lucide="mail-check" class="w-8 h-8"></i>
+                    </div>
+                    <h2 class="text-2xl sm:text-3xl font-serif text-laleh-black mb-1">Verifikasi Email</h2>
+                    <p class="text-gray-500 text-sm mb-6">Kami telah mengirim 6 digit kode OTP ke<br><strong id="display_email" class="text-laleh-mocha"></strong></p>
+                    
+                    <form onsubmit="handleVerifyOTP(event)" class="space-y-6">
+                        <div class="flex justify-center gap-2" id="otp-inputs">
+                            <input type="text" maxlength="1" class="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold border-2 border-gray-200 rounded-xl focus:border-laleh-mocha outline-none bg-gray-50" required oninput="moveToNext(this, event)" onkeydown="moveToPrev(this, event)">
+                            <input type="text" maxlength="1" class="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold border-2 border-gray-200 rounded-xl focus:border-laleh-mocha outline-none bg-gray-50" required oninput="moveToNext(this, event)" onkeydown="moveToPrev(this, event)">
+                            <input type="text" maxlength="1" class="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold border-2 border-gray-200 rounded-xl focus:border-laleh-mocha outline-none bg-gray-50" required oninput="moveToNext(this, event)" onkeydown="moveToPrev(this, event)">
+                            <input type="text" maxlength="1" class="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold border-2 border-gray-200 rounded-xl focus:border-laleh-mocha outline-none bg-gray-50" required oninput="moveToNext(this, event)" onkeydown="moveToPrev(this, event)">
+                            <input type="text" maxlength="1" class="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold border-2 border-gray-200 rounded-xl focus:border-laleh-mocha outline-none bg-gray-50" required oninput="moveToNext(this, event)" onkeydown="moveToPrev(this, event)">
+                            <input type="text" maxlength="1" class="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold border-2 border-gray-200 rounded-xl focus:border-laleh-mocha outline-none bg-gray-50" required oninput="moveToNext(this, event)" onkeydown="moveToPrev(this, event)">
+                        </div>
+
+                        <button type="submit" id="btnVerify" class="w-full bg-laleh-mocha text-white font-medium p-4 rounded-xl hover:bg-[#6d4d3c] transition shadow-lg mt-6">
+                            Verifikasi OTP
+                        </button>
+                    </form>
+
+                    <div class="mt-6">
+                        <p class="text-sm text-gray-500">Tidak menerima email?</p>
+                        <button type="button" onclick="resendOTP()" id="btnResend" class="text-sm font-bold text-gray-700 hover:text-laleh-mocha transition mt-1">Kirim Ulang Kode</button>
+                    </div>
+                    
+                    <button type="button" onclick="cancelOTP()" class="text-xs text-gray-400 hover:underline mt-6">
+                        <i data-lucide="arrow-left" class="w-3 h-3 inline"></i> Kembali ganti email
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // PENYIMPANAN DATA SEMENTARA DI BROWSER
+        let globalData = { nama: '', email: '', pass: '' };
+
+        function togglePass(id, btn) {
+            const input = document.getElementById(id);
+            const icon = btn.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.setAttribute('data-lucide', 'eye-off');
+            } else {
+                input.type = 'password';
+                icon.setAttribute('data-lucide', 'eye');
+            }
+            lucide.createIcons();
+        }
+
+        // LOGIKA KEKUATAN PASSWORD SESUAI PERMINTAAN
+        function checkStrength(val) {
+            const bar = document.getElementById('strength-bar');
+            const text = document.getElementById('strength-text');
+            const hasLetter = /[a-zA-Z]/.test(val);
+            const hasNumber = /[0-9]/.test(val);
+
+            if (val.length === 0) {
+                bar.style.width = "0%";
+                text.innerText = "";
+                return;
+            }
+
+            if (val.length < 8) {
+                // DIBAWAH 8 KARAKTER (MERAH)
+                bar.style.width = "30%";
+                bar.style.backgroundColor = "#EF4444";
+                text.innerText = "Terlalu pendek (Min. 8 karakter)";
+                text.style.color = "#EF4444";
+            } else {
+                if (hasNumber && !hasLetter) {
+                    // HANYA ANGKA (KUNING)
+                    bar.style.width = "60%";
+                    bar.style.backgroundColor = "#FBBF24";
+                    text.innerText = "Kekuatan: Sedang (Tambahkan huruf agar lebih aman)";
+                    text.style.color = "#FBBF24";
+                } else if (hasNumber && hasLetter) {
+                    // KOMBINASI ANGKA + HURUF (HIJAU)
+                    bar.style.width = "100%";
+                    bar.style.backgroundColor = "#10B981";
+                    text.innerText = "Kekuatan: Sangat Baik (Kombinasi Sempurna)";
+                    text.style.color = "#10B981";
+                } else {
+                    // HANYA HURUF (KUNING)
+                    bar.style.width = "60%";
+                    bar.style.backgroundColor = "#FBBF24";
+                    text.innerText = "Kekuatan: Cukup (Tambahkan angka)";
+                    text.style.color = "#FBBF24";
+                }
+            }
+        }
+
+        // ===============================================
+        // MENGIRIM PERMINTAAN PENDAFTARAN & MENGIRIM OTP
+        // ===============================================
+        function handleSignUp(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnSubmit');
+            const nama = document.getElementById('nama').value;
+            const email = document.getElementById('email').value;
+            const pass = document.getElementById('password').value;
+            const confirm = document.getElementById('confirmPassword').value;
+
+            // Validasi di Sisi Browser
+            if (pass.length < 8) {
+                Swal.fire('Gagal', 'Sandi minimal harus 8 karakter.', 'error'); return;
+            }
+            if (!/[a-zA-Z]/.test(pass) || !/[0-9]/.test(pass)) {
+                Swal.fire('Keamanan Rendah', 'Sandi harus mengandung kombinasi Huruf dan Angka.', 'warning'); return;
+            }
+            if (pass !== confirm) {
+                Swal.fire('Ops!', 'Konfirmasi kata sandi tidak cocok.', 'error'); return;
+            }
+
+            // Simpan Ke Memori Browser
+            globalData = { nama: nama, email: email, pass: pass };
+
+            btn.innerHTML = "Memproses...";
+            btn.disabled = true;
+
+            if (typeof google === 'undefined') {
+                Swal.fire('Info', 'Mode Preview Aktif: Menuju halaman OTP.', 'info');
+                setTimeout(() => {
+                    document.getElementById('step-register').classList.add('hidden');
+                    document.getElementById('step-otp').classList.remove('hidden');
+                    document.getElementById('display_email').innerText = email;
+                    btn.innerHTML = "Daftar Sekarang";
+                    btn.disabled = false;
+                }, 1000);
+                return;
+            }
+
+            // Memanggil fungsi OTP di Google Apps Script
+            google.script.run
+                .withSuccessHandler(function(res) {
+                    btn.innerHTML = "Daftar Sekarang";
+                    btn.disabled = false;
+                    if (res.success) {
+                        // Sembunyikan Form Pendaftaran, Tampilkan Form OTP
+                        document.getElementById('step-register').classList.add('hidden');
+                        document.getElementById('step-otp').classList.remove('hidden');
+                        document.getElementById('display_email').innerText = email;
+                        Swal.fire({ icon: 'success', title: 'Cek Email Anda!', text: res.message, timer: 3000, showConfirmButton: false });
+                    } else {
+                        Swal.fire('Gagal Daftar', res.message, 'error');
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    btn.innerHTML = "Daftar Sekarang";
+                    btn.disabled = false;
+                    Swal.fire('Error', 'Gagal terhubung: ' + error.message, 'error');
+                })
+                .requestOtpRegistration(nama, email, pass);
+        }
+
+        // ===============================================
+        // LOGIKA KOTAK OTP (AUTO NEXT & PREV)
+        // ===============================================
+        function moveToNext(current, event) {
+            current.value = current.value.replace(/[^0-9]/g, ''); // Hanya boleh angka
+            if (current.value.length === 1) {
+                let next = current.nextElementSibling;
+                if (next && next.tagName === 'INPUT') next.focus();
+            }
+        }
+
+        function moveToPrev(current, event) {
+            if (event.key === "Backspace" && current.value === "") {
+                let prev = current.previousElementSibling;
+                if (prev && prev.tagName === 'INPUT') prev.focus();
+            }
+        }
+
+        // ===============================================
+        // VERIFIKASI OTP FINAL
+        // ===============================================
+        function handleVerifyOTP(e) {
+            e.preventDefault();
+            
+            // Kumpulkan 6 angka dari kotak input
+            let otpCode = "";
+            const inputs = document.getElementById('otp-inputs').querySelectorAll('input');
+            inputs.forEach(input => otpCode += input.value);
+
+            if(otpCode.length < 6) {
+                Swal.fire({ icon: 'warning', title: 'Kode Tidak Lengkap', text: 'Masukkan ke-6 digit kode OTP dari email.', confirmButtonColor: '#825E4A' });
+                return;
+            }
+
+            const btn = document.getElementById('btnVerify');
+            btn.innerHTML = "Memverifikasi...";
+            btn.disabled = true;
+
+            if (typeof google === 'undefined') {
+                setTimeout(() => {
+                    Swal.fire({ icon: 'success', title: 'Berhasil!', text: 'Pendaftaran Simulasi Sukses.', confirmButtonColor: '#825E4A' })
+                    .then(() => { window.top.location.href = "<?= typeof url !== 'undefined' ? url : '' ?>?page=signin"; });
+                }, 1000);
+                return;
+            }
+
+            google.script.run
+                .withSuccessHandler(function(res) {
+                    btn.innerHTML = "Verifikasi OTP";
+                    btn.disabled = false;
+                    if(res.success) {
+                        Swal.fire({ 
+                            icon: 'success', title: 'Berhasil!', text: res.message, confirmButtonColor: '#825E4A', allowOutsideClick: false
+                        }).then(() => {
+                            try { window.top.location.href = "<?= typeof url !== 'undefined' ? url : '' ?>?page=signin"; } 
+                            catch(e) { window.location.href = "<?= typeof url !== 'undefined' ? url : '' ?>?page=signin"; }
+                        });
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Gagal', text: res.message, confirmButtonColor: '#825E4A' });
+                        // Bersihkan input agar bisa isi ulang
+                        inputs.forEach(input => input.value = '');
+                        inputs[0].focus();
+                    }
+                })
+                .withFailureHandler(function(err) {
+                    btn.innerHTML = "Verifikasi OTP";
+                    btn.disabled = false;
+                    Swal.fire({ icon: 'error', title: 'Error', text: "Gagal terhubung ke server.", confirmButtonColor: '#825E4A' });
+                })
+                .verifyOtpAndRegister(globalData.email, otpCode);
+        }
+
+        // ===============================================
+        // MENGIRIM ULANG KODE OTP
+        // ===============================================
+        function resendOTP() {
+            const btn = document.getElementById('btnResend');
+            btn.innerText = "Mengirim ulang...";
+            btn.disabled = true;
+
+            if (typeof google === 'undefined') {
+                setTimeout(() => {
+                    Swal.fire({ icon: 'info', title: 'Terkirim', text: 'Kode OTP baru telah dikirim (Preview).', confirmButtonColor: '#825E4A' });
+                    btn.innerText = "Kirim Ulang Kode";
+                    btn.disabled = false;
+                }, 1500);
+                return;
+            }
+
+            google.script.run
+                .withSuccessHandler(function(res) {
+                    btn.innerText = "Kirim Ulang Kode";
+                    btn.disabled = false;
+                    if(res.success) {
+                        Swal.fire({ icon: 'success', title: 'Terkirim', text: 'Cek email Anda untuk kode OTP yang baru.', confirmButtonColor: '#825E4A', timer: 2000, showConfirmButton: false });
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Gagal', text: res.message, confirmButtonColor: '#825E4A' });
+                    }
+                })
+                .requestOtpRegistration(globalData.nama, globalData.email, globalData.pass);
+        }
+
+        // BATAL DAN KEMBALI GANTI EMAIL
+        function cancelOTP() {
+            document.getElementById('step-otp').classList.add('hidden');
+            document.getElementById('step-register').classList.remove('hidden');
+            // Bersihkan input OTP sebelumnya
+            document.getElementById('otp-inputs').querySelectorAll('input').forEach(input => input.value = '');
+        }
+
+    </script>
+</body>
+</html>
