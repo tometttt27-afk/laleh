@@ -194,7 +194,7 @@ function loadOrders() {
 function loadAgents() {
     if (typeof google === 'undefined') {
         state.agents = [
-            { id: 'AGN-001', name: 'Janah Galeri', email: 'janah@laleh.com', registerDate: '12/10/2023', address: '<span class="font-semibold text-gray-700">Janah</span><br>Jl. Merdeka No 1, Kab. Bandung' }
+            { id: 'AGN-001', name: 'Janah Galeri', email: 'janah@laleh.com', registerDate: '12/10/2023', no_hp: '081234567890', address: '<span class="font-semibold text-gray-700">Janah</span><br>Jl. Merdeka No 1, Kab. Bandung' }
         ];
         state.unreadAgentCount = 1; // Simulasi badge agen baru di mode preview
         renderApp();
@@ -2702,6 +2702,7 @@ function renderApp() {
                         <td class="py-4 px-4 text-sm text-gray-700">
                             <span class="font-bold text-gray-800">${a.name}</span>
                             <br><span class="text-[11px] text-gray-500 font-medium">${a.email}</span>
+                            <br><p class="text-[10px] text-gray-400 mt-1.5 leading-relaxed flex items-start gap-1"><i data-lucide="phone" class="w-3 h-3 shrink-0 mt-0.5"></i> <span>${a.no_hp ? a.no_hp : '<span class="text-red-400 italic">Belum diisi</span>'}</span></p>
                             <br><p class="text-[10px] text-gray-400 mt-1.5 leading-relaxed flex items-start gap-1"><i data-lucide="map-pin" class="w-3 h-3 shrink-0 mt-0.5"></i> <span>${a.address}</span></p>
                         </td>
                         <td class="py-4 px-4 text-sm text-right align-top">

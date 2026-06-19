@@ -481,6 +481,7 @@ function getAllAgents() {
   
   const data = ws.getDataRange().getValues();
   const agents = [];
+  const noHpIdx = findNoHpIndex_(data[0]);
   
   for (let i = 1; i < data.length; i++) {
     if (data[i][3] && data[i][3].toString().trim().toLowerCase() === "agen") {
@@ -513,6 +514,7 @@ function getAllAgents() {
         email: data[i][1],
         registerDate: data[i][4],
         address: addressStr,
+        no_hp: (noHpIdx >= 0 && data[i][noHpIdx]) ? String(data[i][noHpIdx]) : "",
         billing: billingObj
       });
     }
@@ -584,6 +586,94 @@ function updateAgenAddress(email, addressData) {
 
 /**
  * ==========================================
+ * FITUR NOMOR HP / WHATSAPP AGEN
+ * ==========================================
+ * Kolom "no_hp" ditambahkan otomatis pada sheet Users jika belum ada.
+ * Tidak mengubah/menggeser kolom lama (Nama, Email, Password, Role,
+ * Tanggal Daftar, Alamat JSON, Keuangan JSON) sehingga semua logika
+ * berbasis index kolom lama tetap aman.
+ */
+
+// Helper: pastikan header "no_hp" ada, kembalikan nomor kolom (1-based)
+function getNoHpColIndex_(ws) {
+  const lastCol = ws.getLastColumn();
+  if (lastCol > 0) {
+    const headers = ws.getRange(1, 1, 1, lastCol).getValues()[0];
+    for (let c = 0; c < headers.length; c++) {
+      if (String(headers[c]).trim().toLowerCase() === "no_hp") return c + 1;
+    }
+  }
+  // Header belum ada -> buat kolom baru di paling kanan (tidak merusak data lama)
+  const newCol = (lastCol > 0 ? lastCol : 0) + 1;
+  ws.getRange(1, newCol).setValue("no_hp");
+  return newCol;
+}
+
+// Helper: cari index (0-based) kolom no_hp dari baris header. -1 jika belum ada.
+function findNoHpIndex_(headerRow) {
+  if (!headerRow) return -1;
+  for (let c = 0; c < headerRow.length; c++) {
+    if (String(headerRow[c]).trim().toLowerCase() === "no_hp") return c;
+  }
+  return -1;
+}
+
+// Helper: validasi & rapikan nomor HP/WhatsApp
+function validateNoHp_(noHp) {
+  if (noHp === undefined || noHp === null || String(noHp).trim() === "") {
+    return { valid: false, message: "Nomor HP/WhatsApp wajib diisi." };
+  }
+  const raw = String(noHp).trim();
+  if (!/^[0-9+\-\s]+$/.test(raw)) {
+    return { valid: false, message: "Nomor HP/WhatsApp hanya boleh berisi angka, spasi, tanda + dan -." };
+  }
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length < 10) return { valid: false, message: "Nomor HP/WhatsApp minimal 10 digit angka." };
+  if (digits.length > 15) return { valid: false, message: "Nomor HP/WhatsApp maksimal 15 digit angka." };
+  return { valid: true, clean: digits };
+}
+
+// Simpan / update nomor HP agen ke sheet Users (kolom no_hp)
+function updateAgenPhone(email, no_hp) {
+  const ws = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Users");
+  if (!ws) return { success: false, message: "Database tidak ditemukan." };
+
+  const validation = validateNoHp_(no_hp);
+  if (!validation.valid) return { success: false, message: validation.message };
+
+  const colIndex = getNoHpColIndex_(ws); // memastikan header no_hp tersedia
+  const data = ws.getDataRange().getValues();
+  const cleanEmail = String(email).trim().toLowerCase();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][1]).trim().toLowerCase() === cleanEmail) {
+      ws.getRange(i + 1, colIndex).setValue(validation.clean);
+      return { success: true, message: "Nomor HP/WhatsApp berhasil disimpan!", no_hp: validation.clean };
+    }
+  }
+  return { success: false, message: "Akun tidak ditemukan." };
+}
+
+// Cek status nomor HP agen (opsional, dipakai bila diperlukan frontend)
+function getUserPhoneStatus(email) {
+  const ws = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Users");
+  if (!ws) return { success: false, no_hp: "", hasPhone: false };
+
+  const data = ws.getDataRange().getValues();
+  const idx = findNoHpIndex_(data[0]);
+  const cleanEmail = String(email).trim().toLowerCase();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][1]).trim().toLowerCase() === cleanEmail) {
+      const noHp = (idx >= 0 && data[i][idx]) ? String(data[i][idx]) : "";
+      return { success: true, no_hp: noHp, hasPhone: noHp.trim() !== "" };
+    }
+  }
+  return { success: false, no_hp: "", hasPhone: false };
+}
+
+/**
+ * ==========================================
  * FUNGSI HASHING & AUTENTIKASI UTAMA
  * ==========================================
  */
@@ -610,6 +700,7 @@ function prosesLogin(email, password) {
   const data = ws.getDataRange().getValues();
   const cleanEmail = String(email).trim().toLowerCase();
   const hashedInput = hashPassword(String(password));
+  const noHpIdx = findNoHpIndex_(data[0]);
   
   for (let i = 1; i < data.length; i++) {
     if (!data[i][1]) continue;
@@ -624,7 +715,9 @@ function prosesLogin(email, password) {
         let addressData = null;
         try { addressData = data[i][5] ? JSON.parse(data[i][5]) : null; } catch(e) {}
         
-        return { success: true, message: "Login berhasil!", user: { name: data[i][0], email: data[i][1], role: data[i][3] || "Agen", address: addressData } };
+        let noHp = (noHpIdx >= 0 && data[i][noHpIdx]) ? String(data[i][noHpIdx]) : "";
+        
+        return { success: true, message: "Login berhasil!", user: { name: data[i][0], email: data[i][1], role: data[i][3] || "Agen", address: addressData, no_hp: noHp } };
       }
     }
   }
