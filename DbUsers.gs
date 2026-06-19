@@ -718,7 +718,28 @@ function requestOtpRegistration(nama, email, password) {
   cache.put("OTP_REG_" + cleanEmail, cachedData, 600); 
   
   try {
+    // [PERBAIKAN] Validasi format email sebelum mengirim agar tidak gagal diam-diam (penyebab OTP "tidak terkirim")
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return { success: false, message: "Format email tidak valid. Periksa kembali alamat email Anda." };
+    }
+
+    // [PERBAIKAN] Pastikan kuota pengiriman email harian masih tersedia (penyebab umum OTP tidak terkirim)
+    if (MailApp.getRemainingDailyQuota() <= 0) {
+      return { success: false, message: "Kuota pengiriman email harian telah habis. Silakan coba lagi besok." };
+    }
+
     const subject = "Kode Verifikasi Pendaftaran Agen Laleh";
+
+    // [PERBAIKAN ANTI-SPAM] Sediakan versi teks biasa (plain text) agar email tidak terdeteksi sebagai spam (aturan HTML-only)
+    const plainBody =
+      "Halo " + nama + ",\n\n" +
+      "Terima kasih telah mendaftar menjadi Agen Laleh.id.\n\n" +
+      "Kode OTP verifikasi Anda: " + otpCode + "\n\n" +
+      "Kode ini hanya berlaku selama 10 menit. Jangan beritahukan kode ini kepada siapa pun.\n\n" +
+      "Email otomatis, mohon tidak dibalas.\n" +
+      "Salam,\nTim Laleh.id";
+
     const body = `
       <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 10px;">
         <h2 style="color: #825E4A;">Halo ${nama},</h2>
@@ -732,10 +753,17 @@ function requestOtpRegistration(nama, email, password) {
         <p style="font-size: 12px; color: #999;">Email otomatis, mohon tidak dibalas.<br>Salam,<br><strong>Tim Laleh.id</strong></p>
       </div>
     `;
-    MailApp.sendEmail({ to: cleanEmail, subject: subject, htmlBody: body });
-    return { success: true, message: "Kode OTP berhasil dikirim ke email Anda." };
+    // [PERBAIKAN ANTI-SPAM] Tambahkan nama pengirim (name) & versi teks (body) untuk meningkatkan deliverability
+    MailApp.sendEmail({
+      to: cleanEmail,
+      subject: subject,
+      body: plainBody,
+      htmlBody: body,
+      name: "Laleh.id"
+    });
+    return { success: true, message: "Kode OTP berhasil dikirim ke email Anda. Cek juga folder Spam/Promosi bila tidak ada di Kotak Masuk." };
   } catch (error) {
-    return { success: false, message: "Gagal mengirim email verifikasi. Pastikan email Anda valid." };
+    return { success: false, message: "Gagal mengirim email verifikasi: " + error.message };
   }
 }
 
