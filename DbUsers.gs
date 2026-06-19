@@ -647,7 +647,11 @@ function updateAgenPhone(email, no_hp) {
 
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][1]).trim().toLowerCase() === cleanEmail) {
-      ws.getRange(i + 1, colIndex).setValue(validation.clean);
+      // Simpan sebagai TEKS agar angka 0 di depan tidak hilang (cth: 0812... tetap utuh)
+      const cell = ws.getRange(i + 1, colIndex);
+      cell.setNumberFormat("@");
+      cell.setValue(validation.clean);
+      SpreadsheetApp.flush(); // pastikan perubahan benar-benar tersimpan ke sheet
       return { success: true, message: "Nomor HP/WhatsApp berhasil disimpan!", no_hp: validation.clean };
     }
   }
